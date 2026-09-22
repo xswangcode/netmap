@@ -1,0 +1,34 @@
+{
+  "role": "client",
+  "listen": {
+    "host": "127.0.0.1",
+    "port": 18080
+  },
+  "relay": {
+    "host": "192.168.0.29",
+    "port": 19000,
+    "connectTimeoutSeconds": 10
+  },
+  "rules": [
+    {
+      "target": "10.82.51.231",
+      "proxy": true
+    },
+    {
+      "target": "10.82.51.33",
+      "proxy": true
+    },
+    {
+      "target": "10.82.51.66",
+      "proxy": true
+    },
+    {
+      "target": "10.82.51.115",
+      "proxy": true
+    },
+    {
+      "target": "10.223.127.130",
+      "proxy": true
+    }
+  ]
+}

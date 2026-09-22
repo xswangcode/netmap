@@ -1,0 +1,9 @@
+{
+  "proxy": {
+    "host": "127.0.0.1",
+    "port": 18080
+  },
+  "httpTarget": "http://10.82.51.231:8080/",
+  "httpsTarget": "https://10.82.51.231/",
+  "socks5Target": "10.82.51.231:8080"
+}
