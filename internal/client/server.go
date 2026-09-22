@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
 
 	"netmap/internal/config"
 	"netmap/internal/rule"
@@ -22,6 +23,12 @@ import (
 type Server struct {
 	config  *config.Config
 	matcher *rule.Matcher
+
+	listener net.Listener
+
+	started chan struct{}
+
+	mu sync.Mutex
 }
 
 // NewServer 创建 Client Server。
@@ -29,7 +36,15 @@ func NewServer(config *config.Config) *Server {
 	return &Server{
 		config:  config,
 		matcher: rule.NewMatcher(config.Rules),
+		started: make(chan struct{}),
 	}
+}
+
+// Started 返回 Client 启动完成通知。
+//
+// 当监听端口成功后，该 Channel 会收到通知。
+func (s *Server) Started() <-chan struct{} {
+	return s.started
 }
 
 // Start 启动 Client Server。
@@ -47,16 +62,38 @@ func (s *Server) Start() error {
 			err,
 		)
 	}
-	defer listener.Close()
+
+	s.mu.Lock()
+	s.listener = listener
+	s.mu.Unlock()
+
+	defer func() {
+		s.mu.Lock()
+		s.listener = nil
+		s.mu.Unlock()
+
+		_ = listener.Close()
+	}()
 
 	log.Printf(
 		"client server listening on %s",
 		addr,
 	)
 
+	close(s.started)
+
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
+			s.mu.Lock()
+			stopped := s.listener == nil
+			s.mu.Unlock()
+
+			if stopped {
+				log.Printf("client server stopped")
+				return nil
+			}
+
 			log.Printf(
 				"accept connection failed: %v",
 				err,
@@ -65,5 +102,26 @@ func (s *Server) Start() error {
 		}
 
 		go s.handleConnection(conn)
+	}
+}
+
+// Stop 停止 Client Server。
+func (s *Server) Stop() {
+	s.mu.Lock()
+	listener := s.listener
+	s.listener = nil
+	s.mu.Unlock()
+
+	if listener == nil {
+		return
+	}
+
+	log.Printf("stopping client server")
+
+	if err := listener.Close(); err != nil {
+		log.Printf(
+			"close client listener failed: %v",
+			err,
+		)
 	}
 }

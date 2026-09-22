@@ -4,40 +4,139 @@ import (
 	"flag"
 	"log"
 
+	"netmap/internal/app"
 	"netmap/internal/client"
 	"netmap/internal/config"
+	"netmap/internal/logger"
 	"netmap/internal/relay"
+	"netmap/internal/singleinstance"
+	"netmap/internal/tray"
 )
 
 func main() {
-	configPath := flag.String("config", "", "NetMap configuration file")
-	flag.Parse()
-
-	if *configPath == "" {
-		log.Fatal("config file is required")
+	instance, alreadyRunning, err := singleinstance.Acquire(
+		"NetMap.SingleInstance",
+	)
+	if err != nil {
+		return
 	}
+
+	if alreadyRunning {
+		return
+	}
+
+	defer instance.Release()
+
+	if err := logger.Init(); err != nil {
+		return
+	}
+
+	defer logger.Close()
+
+	log.Println("NetMap starting")
+
+	configPath := flag.String(
+		"config",
+		app.ConfigPath("client.json"),
+		"config file path",
+	)
+
+	flag.Parse()
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		log.Fatal(err)
+		log.Printf(
+			"load config failed: %v",
+			err,
+		)
+		return
 	}
 
-	switch cfg.Role {
-	case "client":
-		server := client.NewServer(cfg)
+	log.Printf(
+		"config loaded role=%s",
+		cfg.Role,
+	)
 
-		if err := server.Start(); err != nil {
-			log.Fatal(err)
-		}
+	if cfg.Role == "relay" {
+		startRelay(cfg)
+		return
+	}
 
-	case "relay":
-		server := relay.NewServer(cfg)
+	startClient(cfg)
+}
 
-		if err := server.Start(); err != nil {
-			log.Fatal(err)
-		}
+// startClient 启动 Client。
+func startClient(cfg *config.Config) {
+	log.Println("starting client server")
 
-	default:
-		log.Fatalf("unsupported role: %s", cfg.Role)
+	server := client.NewServer(cfg)
+
+	startError := make(chan error, 1)
+
+	go func() {
+		startError <- server.Start()
+	}()
+
+	select {
+	case <-server.Started():
+		log.Println("client server started")
+
+		tray.SetServerRunning(true)
+
+		tray.Start("client", func() {
+			log.Println("stopping NetMap")
+
+			server.Stop()
+
+			log.Println("NetMap stopped")
+		})
+
+	case err := <-startError:
+		log.Printf(
+			"start client failed: %v",
+			err,
+		)
+
+		tray.Start("client", func() {
+			log.Println("stopping NetMap")
+		})
+	}
+}
+
+// startRelay 启动 Relay。
+func startRelay(cfg *config.Config) {
+	log.Println("starting relay server")
+
+	server := relay.NewServer(cfg)
+
+	startError := make(chan error, 1)
+
+	go func() {
+		startError <- server.Start()
+	}()
+
+	select {
+	case <-server.Started():
+		log.Println("relay server started")
+
+		tray.SetServerRunning(true)
+
+		tray.Start("relay", func() {
+			log.Println("stopping NetMap")
+
+			server.Stop()
+
+			log.Println("NetMap stopped")
+		})
+
+	case err := <-startError:
+		log.Printf(
+			"start relay failed: %v",
+			err,
+		)
+
+		tray.Start("relay", func() {
+			log.Println("stopping NetMap")
+		})
 	}
 }

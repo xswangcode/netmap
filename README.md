@@ -719,9 +719,474 @@ Web 管理
 
 后续功能根据实际使用需求逐步增加。
 
+---
+
+# 19. v0.2 更新
+
+v0.2 不改变 v0.1 的 TCP 代理和 Relay 核心功能。
+
+主要针对 Windows 下的运行方式、进程管理和使用体验进行了完善。
+
+v0.2 新增：
+
+* Windows 系统托盘
+* NetMap 托盘图标
+* Client / Relay 运行状态显示
+* 后台运行
+* Windows 单实例
+* 日志文件
+* 配置文件路径统一管理
+* 日志目录统一管理
+* 程序资源路径统一管理
+* Client / Relay 启动 BAT
+* Windows GUI 模式构建
+
+---
+
+# 20. v0.2 Windows 托盘
+
+NetMap v0.2 支持 Windows 系统托盘运行。
+
+启动后不会要求用户一直操作控制台，可以在系统托盘中查看 NetMap。
+
+托盘根据当前运行角色显示：
+
+```text
+NetMap
+ ├── Client 运行中
+ ├── 打开配置
+ ├── 查看日志
+ └── 退出
 ```
 
-这份 README 和现在代码的设计是对应的，尤其把 **Client `rules` 和 Relay `allowedTargets` 的职责区别**写清楚了，后面你自己维护配置时不容易混淆。
+Relay 则显示：
 
-下一步如果继续做，我建议就是把 **v0.1 的目录结构、配置文件和 README 定下来，然后打一个真正的 v0.1 release**，之后再单独开 `v0.2` 做 Windows 托盘。
+```text
+NetMap
+ ├── Relay 运行中
+ ├── 打开配置
+ ├── 查看日志
+ └── 退出
 ```
+
+---
+
+# 21. v0.2 后台运行
+
+v0.2 支持 Windows GUI 模式构建。
+
+正式构建：
+
+```powershell
+go build -ldflags="-H=windowsgui" -o netmap.exe ./cmd/netmap
+```
+
+这样启动 NetMap 时不会显示黑色控制台窗口。
+
+NetMap 会作为后台程序运行，并通过系统托盘进行操作。
+
+---
+
+# 22. v0.2 启动脚本
+
+项目提供 BAT 启动脚本：
+
+```text
+BAT/
+├── start-client.bat
+└── start-relay.bat
+```
+
+## 启动 Client
+
+双击：
+
+```text
+BAT/start-client.bat
+```
+
+等价于：
+
+```powershell
+.\netmap.exe -config .\configs\client.json
+```
+
+---
+
+## 启动 Relay
+
+双击：
+
+```text
+BAT/start-relay.bat
+```
+
+等价于：
+
+```powershell
+.\netmap.exe -config .\configs\relay.json
+```
+
+因此部署后不需要每次手动输入 PowerShell 命令。
+
+---
+
+# 23. v0.2 单实例
+
+v0.2 增加 Windows 单实例机制。
+
+同一台电脑上只能运行一个 NetMap 实例。
+
+例如已经运行：
+
+```text
+NetMap Client
+```
+
+再次启动：
+
+```text
+NetMap Client
+```
+
+不会重复启动第二个 NetMap 进程。
+
+这样可以避免：
+
+```text
+多个 Client 同时监听 127.0.0.1:18080
+```
+
+或者：
+
+```text
+多个 Relay 同时监听相同端口
+```
+
+造成端口冲突。
+
+---
+
+# 24. v0.2 日志
+
+v0.2 增加日志文件。
+
+日志目录：
+
+```text
+logs/
+```
+
+日志文件：
+
+```text
+logs/netmap.log
+```
+
+程序启动、配置加载、Client / Relay 启动、停止以及运行过程中的错误都会写入日志。
+
+例如：
+
+```text
+logs/
+└── netmap.log
+```
+
+日志使用程序目录作为基础路径，不依赖当前 PowerShell 工作目录。
+
+---
+
+# 25. v0.2 目录结构
+
+当前项目结构：
+
+```text
+netmap/
+├── BAT/
+│   ├── start-client.bat
+│   └── start-relay.bat
+│
+├── assets/
+│   └── netmap.ico
+│
+├── cmd/
+│   ├── netmap/
+│   │   └── main.go
+│   └── netmap-test/
+│       └── main.go
+│
+├── configs/
+│   ├── client.json
+│   ├── relay.json
+│   └── test.json
+│
+├── internal/
+│   ├── app/
+│   │   └── path.go
+│   │
+│   ├── client/
+│   │   ├── server.go
+│   │   └── connection.go
+│   │
+│   ├── config/
+│   │   └── config.go
+│   │
+│   ├── forward/
+│   │   └── tcp.go
+│   │
+│   ├── logger/
+│   │   └── logger.go
+│   │
+│   ├── protocol/
+│   │   ├── http.go
+│   │   ├── socks5.go
+│   │   └── netmap.go
+│   │
+│   ├── relay/
+│   │   ├── server.go
+│   │   └── connection.go
+│   │
+│   ├── rule/
+│   │   └── matcher.go
+│   │
+│   ├── singleinstance/
+│   │   └── singleinstance_windows.go
+│   │
+│   ├── target/
+│   │   └── whitelist.go
+│   │
+│   └── tray/
+│       └── tray.go
+│
+├── logs/
+│   └── netmap.log
+│
+├── go.mod
+├── go.sum
+└── README.md
+```
+
+---
+
+# 26. v0.2 程序路径
+
+v0.2 统一使用 `netmap.exe` 所在目录作为程序根目录。
+
+例如：
+
+```text
+netmap/
+├── netmap.exe
+├── configs/
+├── logs/
+└── assets/
+```
+
+程序会根据自身位置查找：
+
+```text
+configs/
+logs/
+assets/
+```
+
+因此不要求用户必须从项目根目录启动。
+
+例如：
+
+```powershell
+D:\NetMap\netmap.exe
+```
+
+程序会使用：
+
+```text
+D:\NetMap\configs\
+D:\NetMap\logs\
+D:\NetMap\assets\
+```
+
+---
+
+# 27. v0.2 配置打开
+
+可以通过系统托盘：
+
+```text
+NetMap
+ ↓
+打开配置
+```
+
+直接打开当前运行角色对应的配置文件。
+
+Client：
+
+```text
+configs/client.json
+```
+
+Relay：
+
+```text
+configs/relay.json
+```
+
+---
+
+# 28. v0.2 日志查看
+
+可以通过系统托盘：
+
+```text
+NetMap
+ ↓
+查看日志
+```
+
+直接打开：
+
+```text
+logs/
+```
+
+方便查看运行日志。
+
+---
+
+# 29. v0.2 退出
+
+可以通过系统托盘：
+
+```text
+NetMap
+ ↓
+退出
+```
+
+退出时会：
+
+```text
+托盘
+ ↓
+停止 Client / Relay
+ ↓
+关闭监听
+ ↓
+关闭日志
+ ↓
+退出 NetMap
+```
+
+---
+
+# 30. v0.2 核心变化
+
+v0.2 不改变 NetMap 的核心网络架构。
+
+网络部分仍然是：
+
+```text
+应用
+ ↓
+Client
+ ↓
+rules
+ ↓
+Relay
+ ↓
+allowedTargets
+ ↓
+目标服务
+```
+
+增加的主要是 Windows 运行层：
+
+```text
+                NetMap
+
+┌──────────────────────────┐
+│      Windows 托盘         │
+│                          │
+│  Client / Relay 状态      │
+│  打开配置                 │
+│  查看日志                 │
+│  退出                     │
+└────────────┬─────────────┘
+             │
+             ▼
+┌──────────────────────────┐
+│       NetMap 服务         │
+│                          │
+│  Client / Relay          │
+│                          │
+│  TCP Proxy / TCP Relay   │
+└──────────────────────────┘
+```
+
+---
+
+# 31. 当前版本
+
+当前版本为：
+
+```text
+v0.2
+```
+
+v0.2 的核心定位：
+
+```text
+v0.1
+TCP 代理 / Relay 核心功能
+
+        +
+
+v0.2
+Windows 运行体验
+```
+
+即：
+
+```text
+TCP Proxy
++
+TCP Relay
++
+Rules
++
+Whitelist
++
+Windows Tray
++
+后台运行
++
+单实例
++
+日志
++
+启动脚本
+```
+
+---
+
+# 32. 后续功能
+
+当前版本暂不增加复杂网络能力。
+
+后续如果有实际需求，再考虑：
+
+```text
+UDP
+SOCKS5 UDP
+VPN / TUN
+加密
+连接池
+多路复用
+配置热加载
+Windows Service
+Web 管理
+用户认证
+```
+
+这些功能不属于当前 v0.2 的范围。
