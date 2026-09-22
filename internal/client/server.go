@@ -2,11 +2,11 @@ package client
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"sync"
 
 	"netmap/internal/config"
+	"netmap/internal/logger"
 	"netmap/internal/rule"
 )
 
@@ -75,8 +75,8 @@ func (s *Server) Start() error {
 		_ = listener.Close()
 	}()
 
-	log.Printf(
-		"client server listening on %s",
+	logger.Info(
+		"client server listening addr=%s",
 		addr,
 	)
 
@@ -90,12 +90,12 @@ func (s *Server) Start() error {
 			s.mu.Unlock()
 
 			if stopped {
-				log.Printf("client server stopped")
+				logger.Info("client server stopped")
 				return nil
 			}
 
-			log.Printf(
-				"accept connection failed: %v",
+			logger.Error(
+				"accept client connection failed error=%v",
 				err,
 			)
 			continue
@@ -116,11 +116,11 @@ func (s *Server) Stop() {
 		return
 	}
 
-	log.Printf("stopping client server")
+	logger.Info("stopping client server")
 
 	if err := listener.Close(); err != nil {
-		log.Printf(
-			"close client listener failed: %v",
+		logger.Error(
+			"close client listener failed error=%v",
 			err,
 		)
 	}

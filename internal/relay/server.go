@@ -2,11 +2,11 @@ package relay
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"sync"
 
 	"netmap/internal/config"
+	"netmap/internal/logger"
 	"netmap/internal/target"
 )
 
@@ -36,8 +36,20 @@ func NewServer(config *config.Config) *Server {
 		config.Target.AllowedTargets,
 	)
 	if err != nil {
+		// 配置在启动阶段就非法，属于致命错误。
+		// 这里保留 panic 语义，但把日志级别标为 Error 以便记录。
+		logger.Error(
+			"relay: create whitelist failed: %v",
+			err,
+		)
+
 		panic(err)
 	}
+
+	logger.Debug(
+		"relay: server created: allowed_targets=%d",
+		len(config.Target.AllowedTargets),
+	)
 
 	return &Server{
 		config:    config,
@@ -61,8 +73,19 @@ func (s *Server) Start() error {
 		s.config.Listen.Port,
 	)
 
+	logger.Debug(
+		"relay: starting server: addr=%s",
+		addr,
+	)
+
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
+		logger.Error(
+			"relay: listen failed: addr=%s error=%v",
+			addr,
+			err,
+		)
+
 		return fmt.Errorf(
 			"listen relay server failed: %w",
 			err,
@@ -81,8 +104,9 @@ func (s *Server) Start() error {
 		_ = listener.Close()
 	}()
 
-	log.Printf(
-		"relay server listening on %s",
+	// 应用层面：服务已就绪。
+	logger.Info(
+		"relay: server listening on %s",
 		addr,
 	)
 
@@ -96,16 +120,24 @@ func (s *Server) Start() error {
 			s.mu.Unlock()
 
 			if stopped {
-				log.Printf("relay server stopped")
+				// 应用层面：正常停止。
+				logger.Info("relay: server stopped")
+
 				return nil
 			}
 
-			log.Printf(
-				"accept relay connection failed: %v",
+			logger.Error(
+				"relay: accept connection failed: %v",
 				err,
 			)
+
 			continue
 		}
+
+		logger.Debug(
+			"relay: accepted connection remote=%s",
+			conn.RemoteAddr(),
+		)
 
 		go s.handleConnection(conn)
 	}
@@ -119,14 +151,17 @@ func (s *Server) Stop() {
 	s.mu.Unlock()
 
 	if listener == nil {
+		logger.Debug("relay: stop ignored, server not running")
+
 		return
 	}
 
-	log.Printf("stopping relay server")
+	// 应用层面：开始停止。
+	logger.Info("relay: stopping server")
 
 	if err := listener.Close(); err != nil {
-		log.Printf(
-			"close relay listener failed: %v",
+		logger.Error(
+			"relay: close listener failed: %v",
 			err,
 		)
 	}

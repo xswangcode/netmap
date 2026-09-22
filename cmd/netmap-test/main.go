@@ -6,12 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"net/url"
 	"os"
 	"time"
+
+	"netmap/internal/logger"
 )
 
 // TestConfig 测试配置。
@@ -29,11 +30,18 @@ type ProxyConfig struct {
 }
 
 func main() {
+	if err := logger.Init(); err != nil {
+		return
+	}
+
+	defer logger.Close()
+
 	configPath := "configs/test.json"
 
 	config, err := loadConfig(configPath)
 	if err != nil {
-		log.Fatal(err)
+		logger.Error("load test config failed: %v", err)
+		return
 	}
 
 	proxyAddr := net.JoinHostPort(
@@ -41,7 +49,7 @@ func main() {
 		fmt.Sprintf("%d", config.Proxy.Port),
 	)
 
-	log.Printf("test proxy=%s", proxyAddr)
+	logger.Info("proxy test starting proxy=%s", proxyAddr)
 
 	// HTTP 测试。
 	if config.HTTPTarget != "" {
@@ -66,6 +74,8 @@ func main() {
 			config.SOCKS5Target,
 		)
 	}
+
+	logger.Info("proxy test completed")
 }
 
 // loadConfig 加载测试配置。
@@ -90,6 +100,8 @@ func loadConfig(path string) (*TestConfig, error) {
 		)
 	}
 
+	logger.Debug("test config loaded path=%s", path)
+
 	return &config, nil
 }
 
@@ -98,8 +110,8 @@ func testHTTP(
 	proxyAddr string,
 	targetURL string,
 ) {
-	log.Printf(
-		"http test start target=%s",
+	logger.Info(
+		"http test starting target=%s",
 		targetURL,
 	)
 
@@ -116,9 +128,15 @@ func testHTTP(
 		Timeout: 15 * time.Second,
 	}
 
+	logger.Debug(
+		"http connecting proxy=%s target=%s",
+		proxyAddr,
+		targetURL,
+	)
+
 	response, err := client.Get(targetURL)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"http test failed target=%s error=%v",
 			targetURL,
 			err,
@@ -130,7 +148,7 @@ func testHTTP(
 
 	body, err := io.ReadAll(response.Body)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"http read response failed target=%s error=%v",
 			targetURL,
 			err,
@@ -138,8 +156,9 @@ func testHTTP(
 		return
 	}
 
-	log.Printf(
-		"http test success status=%s bodyLength=%d",
+	logger.Info(
+		"http test success target=%s status=%s bodyLength=%d",
+		targetURL,
 		response.Status,
 		len(body),
 	)
@@ -150,14 +169,14 @@ func testHTTPS(
 	proxyAddr string,
 	targetURL string,
 ) {
-	log.Printf(
-		"https test start target=%s",
+	logger.Info(
+		"https test starting target=%s",
 		targetURL,
 	)
 
 	target, err := url.Parse(targetURL)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"parse https target failed target=%s error=%v",
 			targetURL,
 			err,
@@ -165,19 +184,26 @@ func testHTTPS(
 		return
 	}
 
+	logger.Debug(
+		"https connecting proxy=%s target=%s",
+		proxyAddr,
+		target.Host,
+	)
+
 	proxyConn, err := net.DialTimeout(
 		"tcp",
 		proxyAddr,
 		10*time.Second,
 	)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"connect proxy failed proxy=%s error=%v",
 			proxyAddr,
 			err,
 		)
 		return
 	}
+
 	defer proxyConn.Close()
 
 	// 向 HTTP Proxy 发送 CONNECT。
@@ -189,11 +215,16 @@ func testHTTPS(
 		target.Host,
 	)
 
+	logger.Debug(
+		"https sending CONNECT target=%s",
+		target.Host,
+	)
+
 	if _, err := io.WriteString(
 		proxyConn,
 		connectRequest,
 	); err != nil {
-		log.Printf(
+		logger.Error(
 			"write https connect request failed target=%s error=%v",
 			targetURL,
 			err,
@@ -210,7 +241,7 @@ func testHTTPS(
 		},
 	)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"read https connect response failed target=%s error=%v",
 			targetURL,
 			err,
@@ -219,7 +250,7 @@ func testHTTPS(
 	}
 
 	if response.StatusCode != http.StatusOK {
-		log.Printf(
+		logger.Error(
 			"https connect failed target=%s status=%s",
 			targetURL,
 			response.Status,
@@ -227,7 +258,7 @@ func testHTTPS(
 		return
 	}
 
-	log.Printf(
+	logger.Info(
 		"https connect success target=%s",
 		targetURL,
 	)
@@ -244,35 +275,41 @@ func testSOCKS5(
 	proxyAddr string,
 	targetAddr string,
 ) {
-	log.Printf(
-		"socks5 test start proxy=%s target=%s",
+	logger.Info(
+		"socks5 test starting proxy=%s target=%s",
 		proxyAddr,
 		targetAddr,
 	)
 
 	// 连接本地 SOCKS5 代理。
+	logger.Debug(
+		"socks5 connecting proxy=%s",
+		proxyAddr,
+	)
+
 	conn, err := net.DialTimeout(
 		"tcp",
 		proxyAddr,
 		10*time.Second,
 	)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"socks5 connect proxy failed proxy=%s error=%v",
 			proxyAddr,
 			err,
 		)
 		return
 	}
+
 	defer conn.Close()
 
 	// --------------------------------
 	// 1. SOCKS5 握手
 	// --------------------------------
 	//
-	// VER    = 0x05
+	// VER      = 0x05
 	// NMETHODS = 1
-	// METHOD = 0x00
+	// METHOD   = 0x00
 	//
 	// 表示：
 	// SOCKS5 + 不需要认证。
@@ -282,8 +319,10 @@ func testSOCKS5(
 		0x00,
 	}
 
+	logger.Debug("socks5 sending handshake")
+
 	if _, err := conn.Write(handshake); err != nil {
-		log.Printf(
+		logger.Error(
 			"socks5 write handshake failed error=%v",
 			err,
 		)
@@ -296,7 +335,7 @@ func testSOCKS5(
 		conn,
 		handshakeResponse,
 	); err != nil {
-		log.Printf(
+		logger.Error(
 			"socks5 read handshake response failed error=%v",
 			err,
 		)
@@ -304,7 +343,7 @@ func testSOCKS5(
 	}
 
 	if handshakeResponse[0] != 0x05 {
-		log.Printf(
+		logger.Error(
 			"socks5 invalid response version=%d",
 			handshakeResponse[0],
 		)
@@ -312,16 +351,14 @@ func testSOCKS5(
 	}
 
 	if handshakeResponse[1] != 0x00 {
-		log.Printf(
+		logger.Error(
 			"socks5 server does not support no-auth method method=%d",
 			handshakeResponse[1],
 		)
 		return
 	}
 
-	log.Printf(
-		"socks5 handshake success",
-	)
+	logger.Info("socks5 handshake success")
 
 	// --------------------------------
 	// 2. 解析目标地址
@@ -331,7 +368,7 @@ func testSOCKS5(
 		targetAddr,
 	)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"socks5 invalid target address target=%s error=%v",
 			targetAddr,
 			err,
@@ -341,7 +378,7 @@ func testSOCKS5(
 
 	portNumber, err := parsePort(port)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"socks5 invalid target port target=%s error=%v",
 			targetAddr,
 			err,
@@ -391,6 +428,11 @@ func testSOCKS5(
 			request[8:10],
 			uint16(portNumber),
 		)
+
+		logger.Debug(
+			"socks5 connect request addressType=ipv4 target=%s",
+			targetAddr,
+		)
 	} else if ip != nil {
 		request = make([]byte, 22)
 
@@ -408,12 +450,17 @@ func testSOCKS5(
 			request[20:22],
 			uint16(portNumber),
 		)
+
+		logger.Debug(
+			"socks5 connect request addressType=ipv6 target=%s",
+			targetAddr,
+		)
 	} else {
 		hostBytes := []byte(host)
 
 		if len(hostBytes) == 0 ||
 			len(hostBytes) > 255 {
-			log.Printf(
+			logger.Error(
 				"socks5 invalid domain target=%s",
 				targetAddr,
 			)
@@ -437,10 +484,15 @@ func testSOCKS5(
 			request[5+len(hostBytes):7+len(hostBytes)],
 			uint16(portNumber),
 		)
+
+		logger.Debug(
+			"socks5 connect request addressType=domain target=%s",
+			targetAddr,
+		)
 	}
 
 	if _, err := conn.Write(request); err != nil {
-		log.Printf(
+		logger.Error(
 			"socks5 write connect request failed target=%s error=%v",
 			targetAddr,
 			err,
@@ -458,7 +510,7 @@ func testSOCKS5(
 		conn,
 		responseHeader,
 	); err != nil {
-		log.Printf(
+		logger.Error(
 			"socks5 read connect response failed target=%s error=%v",
 			targetAddr,
 			err,
@@ -467,7 +519,7 @@ func testSOCKS5(
 	}
 
 	if responseHeader[0] != 0x05 {
-		log.Printf(
+		logger.Error(
 			"socks5 invalid connect response version=%d",
 			responseHeader[0],
 		)
@@ -475,7 +527,7 @@ func testSOCKS5(
 	}
 
 	if responseHeader[1] != 0x00 {
-		log.Printf(
+		logger.Error(
 			"socks5 connect target failed target=%s reply=%d",
 			targetAddr,
 			responseHeader[1],
@@ -493,7 +545,7 @@ func testSOCKS5(
 			conn,
 			data,
 		); err != nil {
-			log.Printf(
+			logger.Error(
 				"socks5 read ipv4 response address failed error=%v",
 				err,
 			)
@@ -508,7 +560,7 @@ func testSOCKS5(
 			conn,
 			length,
 		); err != nil {
-			log.Printf(
+			logger.Error(
 				"socks5 read domain response length failed error=%v",
 				err,
 			)
@@ -521,7 +573,7 @@ func testSOCKS5(
 			conn,
 			data,
 		); err != nil {
-			log.Printf(
+			logger.Error(
 				"socks5 read domain response address failed error=%v",
 				err,
 			)
@@ -536,7 +588,7 @@ func testSOCKS5(
 			conn,
 			data,
 		); err != nil {
-			log.Printf(
+			logger.Error(
 				"socks5 read ipv6 response address failed error=%v",
 				err,
 			)
@@ -544,7 +596,7 @@ func testSOCKS5(
 		}
 
 	default:
-		log.Printf(
+		logger.Error(
 			"socks5 unsupported response address type=%d",
 			responseHeader[3],
 		)
@@ -558,14 +610,14 @@ func testSOCKS5(
 		conn,
 		portBytes,
 	); err != nil {
-		log.Printf(
+		logger.Error(
 			"socks5 read response port failed error=%v",
 			err,
 		)
 		return
 	}
 
-	log.Printf(
+	logger.Info(
 		"socks5 connect success target=%s",
 		targetAddr,
 	)

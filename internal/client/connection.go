@@ -4,12 +4,12 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"time"
 
 	"netmap/internal/forward"
+	"netmap/internal/logger"
 	"netmap/internal/protocol"
 )
 
@@ -32,8 +32,8 @@ import (
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	log.Printf(
-		"local client connected remote=%s local=%s",
+	logger.Info(
+		"client connection established remote=%s local=%s",
 		conn.RemoteAddr(),
 		conn.LocalAddr(),
 	)
@@ -43,8 +43,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 	// 查看第一个字节，但不消费数据。
 	firstByte, err := reader.Peek(1)
 	if err != nil {
-		log.Printf(
-			"read protocol header failed error=%v",
+		logger.Error(
+			"read protocol header failed remote=%s error=%v",
+			conn.RemoteAddr(),
 			err,
 		)
 		return
@@ -52,12 +53,22 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 	// SOCKS5 版本号为 0x05。
 	if firstByte[0] == 0x05 {
+		logger.Debug(
+			"protocol detected type=socks5 remote=%s",
+			conn.RemoteAddr(),
+		)
+
 		s.handleSOCKS5Connection(
 			reader,
 			conn,
 		)
 		return
 	}
+
+	logger.Debug(
+		"protocol detected type=http remote=%s",
+		conn.RemoteAddr(),
+	)
 
 	// 其他情况按照 HTTP Proxy 处理。
 	s.handleHTTPConnection(
@@ -74,8 +85,9 @@ func (s *Server) handleHTTPConnection(
 	// 读取 HTTP Proxy 请求。
 	request, err := protocol.ReadHTTPProxyRequest(reader)
 	if err != nil {
-		log.Printf(
-			"read http proxy request failed error=%v",
+		logger.Error(
+			"read http proxy request failed remote=%s error=%v",
+			clientConn.RemoteAddr(),
 			err,
 		)
 
@@ -98,7 +110,7 @@ func (s *Server) handleHTTPConnection(
 		request.Port,
 	)
 
-	log.Printf(
+	logger.Info(
 		"http proxy request target=%s method=%s proxy=%t",
 		target,
 		request.Request.Method,
@@ -132,7 +144,7 @@ func (s *Server) handleHTTPViaRelay(
 	// 连接 Relay。
 	relayConn, err := s.connectRelay()
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"connect relay failed target=%s error=%v",
 			target,
 			err,
@@ -147,7 +159,7 @@ func (s *Server) handleHTTPViaRelay(
 	}
 	defer relayConn.Close()
 
-	log.Printf(
+	logger.Debug(
 		"relay connected relay=%s target=%s",
 		relayConn.RemoteAddr(),
 		target,
@@ -161,7 +173,7 @@ func (s *Server) handleHTTPViaRelay(
 			Port: request.Port,
 		},
 	); err != nil {
-		log.Printf(
+		logger.Error(
 			"send connect request failed target=%s error=%v",
 			target,
 			err,
@@ -180,7 +192,7 @@ func (s *Server) handleHTTPViaRelay(
 		relayConn,
 	)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"read connect response failed target=%s error=%v",
 			target,
 			err,
@@ -195,9 +207,10 @@ func (s *Server) handleHTTPViaRelay(
 	}
 
 	if response.Status != protocol.ConnectSuccess {
-		log.Printf(
-			"relay connect target failed target=%s",
+		logger.Error(
+			"relay connect target failed target=%s status=%d",
 			target,
+			response.Status,
 		)
 
 		writeHTTPError(
@@ -208,7 +221,7 @@ func (s *Server) handleHTTPViaRelay(
 		return
 	}
 
-	log.Printf(
+	logger.Info(
 		"relay target connected target=%s",
 		target,
 	)
@@ -242,7 +255,7 @@ func (s *Server) handleHTTPDirect(
 	// 本机直接连接目标。
 	targetConn, err := s.connectTarget(target)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"connect target directly failed target=%s error=%v",
 			target,
 			err,
@@ -257,7 +270,7 @@ func (s *Server) handleHTTPDirect(
 	}
 	defer targetConn.Close()
 
-	log.Printf(
+	logger.Info(
 		"target connected directly target=%s",
 		target,
 	)
@@ -296,8 +309,9 @@ func (s *Server) handleSOCKS5Connection(
 		clientConn,
 	)
 	if err != nil {
-		log.Printf(
-			"read socks5 request failed error=%v",
+		logger.Error(
+			"read socks5 request failed remote=%s error=%v",
+			clientConn.RemoteAddr(),
 			err,
 		)
 
@@ -319,7 +333,7 @@ func (s *Server) handleSOCKS5Connection(
 		request.Port,
 	)
 
-	log.Printf(
+	logger.Info(
 		"socks5 connect request target=%s proxy=%t",
 		target,
 		shouldProxy,
@@ -351,7 +365,7 @@ func (s *Server) handleSOCKS5ViaRelay(
 	// 连接 Relay。
 	relayConn, err := s.connectRelay()
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"connect relay failed target=%s error=%v",
 			target,
 			err,
@@ -365,7 +379,7 @@ func (s *Server) handleSOCKS5ViaRelay(
 	}
 	defer relayConn.Close()
 
-	log.Printf(
+	logger.Debug(
 		"relay connected relay=%s target=%s",
 		relayConn.RemoteAddr(),
 		target,
@@ -379,7 +393,7 @@ func (s *Server) handleSOCKS5ViaRelay(
 			Port: request.Port,
 		},
 	); err != nil {
-		log.Printf(
+		logger.Error(
 			"send connect request failed target=%s error=%v",
 			target,
 			err,
@@ -397,7 +411,7 @@ func (s *Server) handleSOCKS5ViaRelay(
 		relayConn,
 	)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"read connect response failed target=%s error=%v",
 			target,
 			err,
@@ -411,9 +425,10 @@ func (s *Server) handleSOCKS5ViaRelay(
 	}
 
 	if response.Status != protocol.ConnectSuccess {
-		log.Printf(
-			"relay connect target failed target=%s",
+		logger.Error(
+			"relay connect target failed target=%s status=%d",
 			target,
+			response.Status,
 		)
 
 		_ = protocol.WriteSOCKS5FailureResponse(
@@ -423,7 +438,7 @@ func (s *Server) handleSOCKS5ViaRelay(
 		return
 	}
 
-	log.Printf(
+	logger.Info(
 		"relay target connected target=%s",
 		target,
 	)
@@ -433,7 +448,7 @@ func (s *Server) handleSOCKS5ViaRelay(
 	if err := protocol.WriteSOCKS5SuccessResponse(
 		clientConn,
 	); err != nil {
-		log.Printf(
+		logger.Error(
 			"write socks5 success response failed target=%s error=%v",
 			target,
 			err,
@@ -442,7 +457,7 @@ func (s *Server) handleSOCKS5ViaRelay(
 		return
 	}
 
-	log.Printf(
+	logger.Info(
 		"socks5 connection established target=%s",
 		target,
 	)
@@ -462,7 +477,7 @@ func (s *Server) handleSOCKS5ViaRelay(
 		relayConn,
 	)
 
-	log.Printf(
+	logger.Info(
 		"socks5 connection closed target=%s",
 		target,
 	)
@@ -476,7 +491,7 @@ func (s *Server) handleSOCKS5Direct(
 	// 本机直接连接目标。
 	targetConn, err := s.connectTarget(target)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"connect target directly failed target=%s error=%v",
 			target,
 			err,
@@ -490,7 +505,7 @@ func (s *Server) handleSOCKS5Direct(
 	}
 	defer targetConn.Close()
 
-	log.Printf(
+	logger.Info(
 		"target connected directly target=%s",
 		target,
 	)
@@ -500,7 +515,7 @@ func (s *Server) handleSOCKS5Direct(
 	if err := protocol.WriteSOCKS5SuccessResponse(
 		clientConn,
 	); err != nil {
-		log.Printf(
+		logger.Error(
 			"write socks5 success response failed target=%s error=%v",
 			target,
 			err,
@@ -509,7 +524,7 @@ func (s *Server) handleSOCKS5Direct(
 		return
 	}
 
-	log.Printf(
+	logger.Info(
 		"socks5 direct connection established target=%s",
 		target,
 	)
@@ -526,7 +541,7 @@ func (s *Server) handleSOCKS5Direct(
 		targetConn,
 	)
 
-	log.Printf(
+	logger.Info(
 		"socks5 direct connection closed target=%s",
 		target,
 	)
@@ -623,7 +638,7 @@ func handleHTTPRequest(
 	)
 
 	if err := request.Write(targetConn); err != nil {
-		log.Printf(
+		logger.Error(
 			"write http request to target failed target=%s error=%v",
 			target,
 			err,
@@ -632,7 +647,7 @@ func handleHTTPRequest(
 		return
 	}
 
-	log.Printf(
+	logger.Debug(
 		"http request forwarded target=%s",
 		target,
 	)
@@ -644,7 +659,7 @@ func handleHTTPRequest(
 	)
 
 	if err != nil && err != io.EOF {
-		log.Printf(
+		logger.Error(
 			"forward http response failed target=%s error=%v",
 			target,
 			err,
@@ -653,7 +668,7 @@ func handleHTTPRequest(
 		return
 	}
 
-	log.Printf(
+	logger.Info(
 		"http request completed target=%s",
 		target,
 	)
@@ -673,7 +688,7 @@ func handleHTTPSConnect(
 			"\r\n",
 	)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"write connect success response failed target=%s error=%v",
 			target,
 			err,
@@ -682,7 +697,7 @@ func handleHTTPSConnect(
 		return
 	}
 
-	log.Printf(
+	logger.Info(
 		"https connect established target=%s",
 		target,
 	)
@@ -694,7 +709,7 @@ func handleHTTPSConnect(
 		targetConn,
 	)
 
-	log.Printf(
+	logger.Info(
 		"https connection closed target=%s",
 		target,
 	)

@@ -27,7 +27,9 @@ func ReadHTTPProxyRequest(
 	}
 
 	if request.URL == nil {
-		return nil, fmt.Errorf("http request url is empty")
+		return nil, fmt.Errorf(
+			"http request url is empty",
+		)
 	}
 
 	host, port, err := parseHTTPTarget(request)
@@ -43,7 +45,9 @@ func ReadHTTPProxyRequest(
 }
 
 // parseHTTPTarget 解析 HTTP 代理请求中的目标地址。
-func parseHTTPTarget(request *http.Request) (
+func parseHTTPTarget(
+	request *http.Request,
+) (
 	string,
 	uint16,
 	error,
@@ -94,7 +98,9 @@ func splitHostPort(host string) (string, uint16) {
 			u.Port(),
 			"%d",
 			&value,
-		); err == nil && value > 0 && value <= 65535 {
+		); err == nil &&
+			value > 0 &&
+			value <= 65535 {
 			port = uint16(value)
 		}
 	}

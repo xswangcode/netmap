@@ -15,6 +15,12 @@ type Config struct {
 	Relay  RelayConfig  `json:"relay"`
 	Target TargetConfig `json:"target"`
 	Rules  []rule.Rule  `json:"rules"`
+	Log    LogConfig    `json:"log"`
+}
+
+// LogConfig 日志配置。
+type LogConfig struct {
+	Level string `json:"level"`
 }
 
 // ListenConfig 服务监听配置。
@@ -82,6 +88,19 @@ func (c *Config) Validate() error {
 		return fmt.Errorf(
 			"invalid listen port: %d",
 			c.Listen.Port,
+		)
+	}
+
+	// 未配置日志等级时使用 INFO。
+	if c.Log.Level == "" {
+		c.Log.Level = "INFO"
+	}
+
+	if c.Log.Level != "INFO" &&
+		c.Log.Level != "DEBUG" {
+		return fmt.Errorf(
+			"invalid log level: %s, expected INFO or DEBUG",
+			c.Log.Level,
 		)
 	}
 

@@ -2,11 +2,11 @@ package relay
 
 import (
 	"fmt"
-	"log"
 	"net"
 	"time"
 
 	"netmap/internal/forward"
+	"netmap/internal/logger"
 	"netmap/internal/protocol"
 )
 
@@ -14,22 +14,37 @@ import (
 //
 // Relay 不解析 HTTP、HTTPS、SOCKS5，
 // 只负责解析 Client 和 Relay 之间的 NetMap 协议。
+//
+// 日志级别约定：
+//   - logger.Debug：连接级细节（地址、目标解析、转发开始/结束）
+//   - logger.Info ：应用层面关键事件（客户端接入、成功连通目标、连接关闭）
+//   - logger.Error：任何出错路径
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
-	log.Printf(
-		"client connected remote=%s local=%s",
-		conn.RemoteAddr(),
-		conn.LocalAddr(),
+	remote := conn.RemoteAddr().String()
+	local := conn.LocalAddr().String()
+
+	// 应用层面：有客户端接入。
+	logger.Info(
+		"relay: client connected remote=%s local=%s",
+		remote,
+		local,
+	)
+
+	logger.Debug(
+		"relay: reading connect request remote=%s",
+		remote,
 	)
 
 	request, err := protocol.ReadConnectRequest(conn)
 	if err != nil {
-		log.Printf(
-			"read connect request failed remote=%s error=%v",
-			conn.RemoteAddr(),
+		logger.Error(
+			"relay: read connect request failed remote=%s error=%v",
+			remote,
 			err,
 		)
+
 		return
 	}
 
@@ -38,9 +53,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 		fmt.Sprintf("%d", request.Port),
 	)
 
-	log.Printf(
-		"connect request remote=%s target=%s",
-		conn.RemoteAddr(),
+	logger.Debug(
+		"relay: connect request remote=%s target=%s",
+		remote,
 		target,
 	)
 
@@ -57,9 +72,9 @@ func (s *Server) handleConnection(conn net.Conn) {
 		request.Host,
 		request.Port,
 	) {
-		log.Printf(
-			"target is not allowed remote=%s target=%s",
-			conn.RemoteAddr(),
+		logger.Error(
+			"relay: target is not allowed remote=%s target=%s",
+			remote,
 			target,
 		)
 
@@ -77,15 +92,22 @@ func (s *Server) handleConnection(conn net.Conn) {
 		s.config.Target.ConnectTimeoutSeconds,
 	) * time.Second
 
+	logger.Debug(
+		"relay: dialing target remote=%s target=%s timeout=%s",
+		remote,
+		target,
+		timeout,
+	)
+
 	targetConn, err := net.DialTimeout(
 		"tcp",
 		target,
 		timeout,
 	)
 	if err != nil {
-		log.Printf(
-			"connect target failed remote=%s target=%s error=%v",
-			conn.RemoteAddr(),
+		logger.Error(
+			"relay: connect target failed remote=%s target=%s error=%v",
+			remote,
 			target,
 			err,
 		)
@@ -107,18 +129,26 @@ func (s *Server) handleConnection(conn net.Conn) {
 			Status: protocol.ConnectSuccess,
 		},
 	); err != nil {
-		log.Printf(
-			"send connect response failed remote=%s target=%s error=%v",
-			conn.RemoteAddr(),
+		logger.Error(
+			"relay: send connect response failed remote=%s target=%s error=%v",
+			remote,
 			target,
 			err,
 		)
+
 		return
 	}
 
-	log.Printf(
-		"target connected remote=%s target=%s",
-		conn.RemoteAddr(),
+	// 应用层面：成功建立到目标后端的连接。
+	logger.Debug(
+		"relay: target connected remote=%s target=%s",
+		remote,
+		target,
+	)
+
+	logger.Debug(
+		"relay: start forwarding remote=%s target=%s",
+		remote,
 		target,
 	)
 
@@ -127,9 +157,10 @@ func (s *Server) handleConnection(conn net.Conn) {
 		targetConn,
 	)
 
-	log.Printf(
-		"connection closed remote=%s target=%s",
-		conn.RemoteAddr(),
+	// 应用层面：连接生命周期结束。
+	logger.Debug(
+		"relay: connection closed remote=%s target=%s",
+		remote,
 		target,
 	)
 }

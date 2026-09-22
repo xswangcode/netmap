@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"log"
 
 	"netmap/internal/app"
 	"netmap/internal/client"
@@ -33,7 +32,7 @@ func main() {
 
 	defer logger.Close()
 
-	log.Println("NetMap starting")
+	logger.Info("NetMap starting")
 
 	configPath := flag.String(
 		"config",
@@ -45,14 +44,14 @@ func main() {
 
 	cfg, err := config.Load(*configPath)
 	if err != nil {
-		log.Printf(
+		logger.Error(
 			"load config failed: %v",
 			err,
 		)
 		return
 	}
 
-	log.Printf(
+	logger.Info(
 		"config loaded role=%s",
 		cfg.Role,
 	)
@@ -67,7 +66,7 @@ func main() {
 
 // startClient 启动 Client。
 func startClient(cfg *config.Config) {
-	log.Println("starting client server")
+	logger.Info("starting client server")
 
 	server := client.NewServer(cfg)
 
@@ -79,33 +78,33 @@ func startClient(cfg *config.Config) {
 
 	select {
 	case <-server.Started():
-		log.Println("client server started")
+		logger.Info("client server started")
 
 		tray.SetServerRunning(true)
 
 		tray.Start("client", func() {
-			log.Println("stopping NetMap")
+			logger.Info("stopping NetMap")
 
 			server.Stop()
 
-			log.Println("NetMap stopped")
+			logger.Info("NetMap stopped")
 		})
 
 	case err := <-startError:
-		log.Printf(
-			"start client failed: %v",
+		logger.Error(
+			"start client server failed: %v",
 			err,
 		)
 
 		tray.Start("client", func() {
-			log.Println("stopping NetMap")
+			logger.Info("stopping NetMap")
 		})
 	}
 }
 
 // startRelay 启动 Relay。
 func startRelay(cfg *config.Config) {
-	log.Println("starting relay server")
+	logger.Info("starting relay server")
 
 	server := relay.NewServer(cfg)
 
@@ -117,26 +116,26 @@ func startRelay(cfg *config.Config) {
 
 	select {
 	case <-server.Started():
-		log.Println("relay server started")
+		logger.Info("relay server started")
 
 		tray.SetServerRunning(true)
 
 		tray.Start("relay", func() {
-			log.Println("stopping NetMap")
+			logger.Info("stopping NetMap")
 
 			server.Stop()
 
-			log.Println("NetMap stopped")
+			logger.Info("NetMap stopped")
 		})
 
 	case err := <-startError:
-		log.Printf(
-			"start relay failed: %v",
+		logger.Error(
+			"start relay server failed: %v",
 			err,
 		)
 
 		tray.Start("relay", func() {
-			log.Println("stopping NetMap")
+			logger.Info("stopping NetMap")
 		})
 	}
 }

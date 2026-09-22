@@ -1,5 +1,6 @@
 {
   "role": "client",
+  "log_level": "DEBUG",
   "listen": {
     "host": "127.0.0.1",
     "port": 18080
@@ -24,6 +25,50 @@
     },
     {
       "target": "10.82.51.115",
+      "proxy": true
+    },
+    {
+      "target": "10.82.79.139",
+      "proxy": true
+    },
+    {
+      "target": "10.82.79.242",
+      "proxy": true
+    },
+    {
+      "target": "10.82.79.159",
+      "proxy": true
+    },
+    {
+      "target": "10.82.79.67",
+      "proxy": true
+    },
+    {
+      "target": "10.82.79.108",
+      "proxy": true
+    },
+    {
+      "target": "10.82.79.48",
+      "proxy": true
+    },
+    {
+      "target": "10.82.79.182",
+      "proxy": true
+    },
+    {
+      "target": "10.82.79.37",
+      "proxy": true
+    },
+    {
+      "target": "10.82.79.181",
+      "proxy": true
+    },
+    {
+      "target": "10.83.60.84",
+      "proxy": true
+    },
+    {
+      "target": "10.83.60.85",
       "proxy": true
     },
     {

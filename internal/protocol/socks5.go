@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"io"
 	"net"
+
+	"netmap/internal/logger"
 )
 
 // SOCKS5 协议版本。
@@ -69,6 +71,11 @@ type SOCKS5Request struct {
 //
 // reader 负责读取 SOCKS5 数据。
 // writer 负责向 SOCKS5 客户端返回响应。
+//
+// 日志级别约定：
+//   - logger.Debug：连接、协议交互（握手、读取字节、地址解析等）
+//   - logger.Info ：应用层面的关键事件（例如成功接收一个 CONNECT 请求）
+//   - logger.Error：任何出错路径
 func ReadSOCKS5Request(
 	reader io.Reader,
 	writer io.Writer,
@@ -89,12 +96,19 @@ func ReadSOCKS5Request(
 	//
 	// 0x00 = NO AUTHENTICATION REQUIRED
 
+	logger.Debug("socks5: start handshake")
+
 	header := make([]byte, 2)
 
 	if _, err := io.ReadFull(
 		reader,
 		header,
 	); err != nil {
+		logger.Error(
+			"socks5: read handshake header failed: %v",
+			err,
+		)
+
 		return nil, fmt.Errorf(
 			"read socks5 handshake failed: %w",
 			err,
@@ -102,6 +116,11 @@ func ReadSOCKS5Request(
 	}
 
 	if header[0] != socks5Version {
+		logger.Error(
+			"socks5: unsupported protocol version: %d",
+			header[0],
+		)
+
 		return nil, fmt.Errorf(
 			"unsupported socks5 version: %d",
 			header[0],
@@ -111,6 +130,10 @@ func ReadSOCKS5Request(
 	methodCount := int(header[1])
 
 	if methodCount == 0 {
+		logger.Error(
+			"socks5: method count is zero",
+		)
+
 		return nil, fmt.Errorf(
 			"socks5 method count cannot be zero",
 		)
@@ -122,11 +145,22 @@ func ReadSOCKS5Request(
 		reader,
 		methods,
 	); err != nil {
+		logger.Error(
+			"socks5: read auth methods failed: %v (method_count=%d)",
+			err,
+			methodCount,
+		)
+
 		return nil, fmt.Errorf(
 			"read socks5 methods failed: %w",
 			err,
 		)
 	}
+
+	logger.Debug(
+		"socks5: received auth methods: %v",
+		methods,
+	)
 
 	// 检查客户端是否支持 NO AUTH。
 	supportNone := false
@@ -139,6 +173,11 @@ func ReadSOCKS5Request(
 	}
 
 	if !supportNone {
+		logger.Error(
+			"socks5: client does not support no-auth method: %v",
+			methods,
+		)
+
 		_ = writeSOCKS5AuthResponse(
 			writer,
 			socks5AuthNoAcceptable,
@@ -154,8 +193,17 @@ func ReadSOCKS5Request(
 		writer,
 		socks5AuthNone,
 	); err != nil {
+		logger.Error(
+			"socks5: write auth response failed: %v",
+			err,
+		)
+
 		return nil, err
 	}
+
+	logger.Debug(
+		"socks5: handshake completed: auth_method=none",
+	)
 
 	// --------------------------------
 	// 2. SOCKS5 CONNECT 请求
@@ -167,12 +215,19 @@ func ReadSOCKS5Request(
 	// | 1  |  1  |   1   |  1   | Variable |    2     |
 	// +----+-----+-------+------+----------+----------+
 
+	logger.Debug("socks5: reading connect request header")
+
 	requestHeader := make([]byte, 4)
 
 	if _, err := io.ReadFull(
 		reader,
 		requestHeader,
 	); err != nil {
+		logger.Error(
+			"socks5: read request header failed: %v",
+			err,
+		)
+
 		return nil, fmt.Errorf(
 			"read socks5 request header failed: %w",
 			err,
@@ -180,6 +235,11 @@ func ReadSOCKS5Request(
 	}
 
 	if requestHeader[0] != socks5Version {
+		logger.Error(
+			"socks5: unsupported request version: %d",
+			requestHeader[0],
+		)
+
 		return nil, fmt.Errorf(
 			"unsupported socks5 request version: %d",
 			requestHeader[0],
@@ -188,6 +248,11 @@ func ReadSOCKS5Request(
 
 	// 第一版只支持 CONNECT。
 	if requestHeader[1] != socks5CommandConnect {
+		logger.Error(
+			"socks5: unsupported command: %d",
+			requestHeader[1],
+		)
+
 		_ = writeSOCKS5Reply(
 			writer,
 			socks5ReplyCommandNotSupported,
@@ -203,11 +268,22 @@ func ReadSOCKS5Request(
 
 	addressType := requestHeader[3]
 
+	logger.Debug(
+		"socks5: reading target address: address_type=%d",
+		addressType,
+	)
+
 	host, err := readSOCKS5Address(
 		reader,
 		addressType,
 	)
 	if err != nil {
+		logger.Error(
+			"socks5: read target address failed: %v (address_type=%d)",
+			err,
+			addressType,
+		)
+
 		_ = writeSOCKS5Reply(
 			writer,
 			socks5ReplyAddressTypeNotSupported,
@@ -224,6 +300,12 @@ func ReadSOCKS5Request(
 		reader,
 		portBytes,
 	); err != nil {
+		logger.Error(
+			"socks5: read target port failed: %v (host=%s)",
+			err,
+			host,
+		)
+
 		return nil, fmt.Errorf(
 			"read socks5 target port failed: %w",
 			err,
@@ -234,10 +316,23 @@ func ReadSOCKS5Request(
 		uint16(portBytes[1])
 
 	if port == 0 {
+		logger.Error(
+			"socks5: target port is zero: host=%s",
+			host,
+		)
+
 		return nil, fmt.Errorf(
 			"socks5 target port cannot be zero",
 		)
 	}
+
+	// 应用层事件：成功接收并解析出一个有效的 CONNECT 请求。
+	logger.Info(
+		"socks5: connect request received: host=%s port=%d address_type=%d",
+		host,
+		port,
+		addressType,
+	)
 
 	return &SOCKS5Request{
 		Host: host,
@@ -253,12 +348,19 @@ func readSOCKS5Address(
 	switch addressType {
 
 	case socks5AddressIPv4:
+		logger.Debug("socks5: reading ipv4 address")
+
 		data := make([]byte, 4)
 
 		if _, err := io.ReadFull(
 			reader,
 			data,
 		); err != nil {
+			logger.Error(
+				"socks5: read ipv4 address failed: %v",
+				err,
+			)
+
 			return "", fmt.Errorf(
 				"read socks5 ipv4 address failed: %w",
 				err,
@@ -268,12 +370,19 @@ func readSOCKS5Address(
 		return net.IP(data).String(), nil
 
 	case socks5AddressDomain:
+		logger.Debug("socks5: reading domain address")
+
 		length := make([]byte, 1)
 
 		if _, err := io.ReadFull(
 			reader,
 			length,
 		); err != nil {
+			logger.Error(
+				"socks5: read domain length failed: %v",
+				err,
+			)
+
 			return "", fmt.Errorf(
 				"read socks5 domain length failed: %w",
 				err,
@@ -283,6 +392,10 @@ func readSOCKS5Address(
 		hostLength := int(length[0])
 
 		if hostLength == 0 {
+			logger.Error(
+				"socks5: domain is empty",
+			)
+
 			return "", fmt.Errorf(
 				"socks5 domain cannot be empty",
 			)
@@ -294,6 +407,12 @@ func readSOCKS5Address(
 			reader,
 			host,
 		); err != nil {
+			logger.Error(
+				"socks5: read domain failed: %v (domain_length=%d)",
+				err,
+				hostLength,
+			)
+
 			return "", fmt.Errorf(
 				"read socks5 domain failed: %w",
 				err,
@@ -303,12 +422,19 @@ func readSOCKS5Address(
 		return string(host), nil
 
 	case socks5AddressIPv6:
+		logger.Debug("socks5: reading ipv6 address")
+
 		data := make([]byte, 16)
 
 		if _, err := io.ReadFull(
 			reader,
 			data,
 		); err != nil {
+			logger.Error(
+				"socks5: read ipv6 address failed: %v",
+				err,
+			)
+
 			return "", fmt.Errorf(
 				"read socks5 ipv6 address failed: %w",
 				err,
@@ -318,6 +444,11 @@ func readSOCKS5Address(
 		return net.IP(data).String(), nil
 
 	default:
+		logger.Error(
+			"socks5: unsupported address type: %d",
+			addressType,
+		)
+
 		return "", fmt.Errorf(
 			"unsupported socks5 address type: %d",
 			addressType,
@@ -342,6 +473,11 @@ func writeSOCKS5AuthResponse(
 		)
 	}
 
+	logger.Debug(
+		"socks5: auth response sent: method=%d",
+		method,
+	)
+
 	return nil
 }
 
@@ -349,6 +485,8 @@ func writeSOCKS5AuthResponse(
 func WriteSOCKS5SuccessResponse(
 	writer io.Writer,
 ) error {
+	logger.Debug("socks5: sending success response")
+
 	return writeSOCKS5Reply(
 		writer,
 		socks5ReplySuccess,
@@ -361,6 +499,8 @@ func WriteSOCKS5SuccessResponse(
 func WriteSOCKS5FailureResponse(
 	writer io.Writer,
 ) error {
+	logger.Debug("socks5: sending failure response")
+
 	return writeSOCKS5Reply(
 		writer,
 		socks5ReplyGeneralFailure,
@@ -408,6 +548,12 @@ func writeSOCKS5Reply(
 	data[9] = byte(port)
 
 	if _, err := writer.Write(data); err != nil {
+		logger.Error(
+			"socks5: write reply failed: %v (reply=%d)",
+			err,
+			reply,
+		)
+
 		return fmt.Errorf(
 			"write socks5 reply failed: %w",
 			err,

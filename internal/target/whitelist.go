@@ -5,6 +5,8 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	"netmap/internal/logger"
 )
 
 // Whitelist 目标地址白名单。
@@ -48,7 +50,16 @@ type Whitelist struct {
 }
 
 // NewWhitelist 创建目标白名单。
+//
+// 日志级别约定：
+//   - logger.Debug：构造过程、每条配置被接受
+//   - logger.Error：配置格式非法
 func NewWhitelist(targets []string) (*Whitelist, error) {
+	logger.Debug(
+		"target: building whitelist: entries=%d",
+		len(targets),
+	)
+
 	allowedHosts := make(map[string]struct{})
 	allowedTargets := make(map[string]struct{})
 
@@ -61,7 +72,14 @@ func NewWhitelist(targets []string) (*Whitelist, error) {
 
 		// 纯 IP。
 		if ip := net.ParseIP(targetValue); ip != nil {
-			allowedHosts[normalizeIP(ip)] = struct{}{}
+			normalized := normalizeIP(ip)
+			allowedHosts[normalized] = struct{}{}
+
+			logger.Debug(
+				"target: whitelist entry: type=ip target=%s",
+				normalized,
+			)
+
 			continue
 		}
 
@@ -74,6 +92,11 @@ func NewWhitelist(targets []string) (*Whitelist, error) {
 			targetHost = strings.TrimSpace(targetHost)
 
 			if targetHost == "" {
+				logger.Error(
+					"target: whitelist entry invalid: host is empty: %q",
+					targetValue,
+				)
+
 				return nil, fmt.Errorf(
 					"target host cannot be empty: %q",
 					targetValue,
@@ -83,6 +106,12 @@ func NewWhitelist(targets []string) (*Whitelist, error) {
 			// 校验端口。
 			portNumber, err := strconv.Atoi(targetPort)
 			if err != nil {
+				logger.Error(
+					"target: whitelist entry invalid: bad port: %q error=%v",
+					targetPort,
+					err,
+				)
+
 				return nil, fmt.Errorf(
 					"invalid target port %q: %w",
 					targetPort,
@@ -91,6 +120,11 @@ func NewWhitelist(targets []string) (*Whitelist, error) {
 			}
 
 			if portNumber <= 0 || portNumber > 65535 {
+				logger.Error(
+					"target: whitelist entry invalid: port out of range: %d",
+					portNumber,
+				)
+
 				return nil, fmt.Errorf(
 					"target port out of range: %d",
 					portNumber,
@@ -112,6 +146,11 @@ func NewWhitelist(targets []string) (*Whitelist, error) {
 
 			allowedTargets[normalizedTarget] = struct{}{}
 
+			logger.Debug(
+				"target: whitelist entry: type=host:port target=%s",
+				normalizedTarget,
+			)
+
 			continue
 		}
 
@@ -120,6 +159,11 @@ func NewWhitelist(targets []string) (*Whitelist, error) {
 		//
 		// 普通域名本身不会包含冒号。
 		if strings.Contains(targetValue, ":") {
+			logger.Error(
+				"target: whitelist entry invalid: not IP, IP:Port, domain or domain:Port: %q",
+				targetValue,
+			)
+
 			return nil, fmt.Errorf(
 				"invalid target %q, expected IP, IP:Port, domain or domain:Port",
 				targetValue,
@@ -139,6 +183,11 @@ func NewWhitelist(targets []string) (*Whitelist, error) {
 		domain := normalizeDomain(targetValue)
 
 		if domain == "" {
+			logger.Error(
+				"target: whitelist entry invalid: domain is empty: %q",
+				targetValue,
+			)
+
 			return nil, fmt.Errorf(
 				"target host cannot be empty: %q",
 				targetValue,
@@ -146,14 +195,29 @@ func NewWhitelist(targets []string) (*Whitelist, error) {
 		}
 
 		allowedHosts[domain] = struct{}{}
+
+		logger.Debug(
+			"target: whitelist entry: type=domain target=%s",
+			domain,
+		)
 	}
 
 	if len(allowedHosts) == 0 &&
 		len(allowedTargets) == 0 {
+		logger.Error(
+			"target: whitelist is empty",
+		)
+
 		return nil, fmt.Errorf(
 			"target whitelist cannot be empty",
 		)
 	}
+
+	logger.Debug(
+		"target: whitelist built: hosts=%d targets=%d",
+		len(allowedHosts),
+		len(allowedTargets),
+	)
 
 	return &Whitelist{
 		allowedHosts:   allowedHosts,
@@ -180,6 +244,11 @@ func (w *Whitelist) Allow(
 	host = strings.TrimSpace(host)
 
 	if host == "" {
+		logger.Debug(
+			"target: allow denied: empty host: port=%d",
+			port,
+		)
+
 		return false
 	}
 
@@ -193,6 +262,12 @@ func (w *Whitelist) Allow(
 
 	// Host 全端口规则优先。
 	if _, exists := w.allowedHosts[host]; exists {
+		logger.Debug(
+			"target: allow matched host rule: host=%s port=%d",
+			host,
+			port,
+		)
+
 		return true
 	}
 
@@ -201,9 +276,23 @@ func (w *Whitelist) Allow(
 		strconv.Itoa(int(port)),
 	)
 
-	_, exists := w.allowedTargets[target]
+	if _, exists := w.allowedTargets[target]; exists {
+		logger.Debug(
+			"target: allow matched host:port rule: host=%s port=%d",
+			host,
+			port,
+		)
 
-	return exists
+		return true
+	}
+
+	logger.Debug(
+		"target: allow denied: no matching rule: host=%s port=%d",
+		host,
+		port,
+	)
+
+	return false
 }
 
 // normalizeIP 统一 IP 字符串格式。

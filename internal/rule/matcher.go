@@ -5,6 +5,8 @@ import (
 	"net"
 	"strconv"
 	"strings"
+
+	"netmap/internal/logger"
 )
 
 // Rule 代理规则。
@@ -33,6 +35,11 @@ type Matcher struct {
 
 // NewMatcher 创建规则匹配器。
 func NewMatcher(rules []Rule) *Matcher {
+	logger.Debug(
+		"rule: matcher created: rules=%d",
+		len(rules),
+	)
+
 	return &Matcher{
 		rules: rules,
 	}
@@ -52,11 +59,25 @@ func (m *Matcher) ShouldProxy(
 			host,
 			port,
 		) {
+			logger.Debug(
+				"rule: matched: target=%s port=%d rule=%s proxy=%t",
+				host,
+				port,
+				rule.Target,
+				rule.Proxy,
+			)
+
 			return rule.Proxy
 		}
 	}
 
 	// 没有匹配到规则时，本机直连。
+	logger.Debug(
+		"rule: no match, direct: target=%s port=%d",
+		host,
+		port,
+	)
+
 	return false
 }
 
@@ -145,8 +166,17 @@ func matchHost(
 
 // ValidateRules 校验代理规则。
 func ValidateRules(rules []Rule) error {
+	logger.Debug(
+		"rule: validating rules: count=%d",
+		len(rules),
+	)
+
 	for _, rule := range rules {
 		if strings.TrimSpace(rule.Target) == "" {
+			logger.Error(
+				"rule: validation failed: target is empty",
+			)
+
 			return fmt.Errorf(
 				"rule target cannot be empty",
 			)
@@ -163,12 +193,23 @@ func ValidateRules(rules []Rule) error {
 
 		// 纯 IP。
 		if ip := net.ParseIP(target); ip != nil {
+			logger.Debug(
+				"rule: validated ip rule: target=%s proxy=%t",
+				target,
+				rule.Proxy,
+			)
+
 			continue
 		}
 
 		// IP:Port 或 Domain:Port。
 		if host, port, err := net.SplitHostPort(target); err == nil {
 			if strings.TrimSpace(host) == "" {
+				logger.Error(
+					"rule: validation failed: host is empty: target=%s",
+					target,
+				)
+
 				return fmt.Errorf(
 					"rule target host cannot be empty: %s",
 					target,
@@ -179,25 +220,53 @@ func ValidateRules(rules []Rule) error {
 			if err != nil ||
 				portNumber <= 0 ||
 				portNumber > 65535 {
+				logger.Error(
+					"rule: validation failed: invalid port: target=%s port=%s",
+					target,
+					port,
+				)
+
 				return fmt.Errorf(
 					"invalid rule target port: %s",
 					target,
 				)
 			}
 
+			logger.Debug(
+				"rule: validated host:port rule: target=%s proxy=%t",
+				target,
+				rule.Proxy,
+			)
+
 			continue
 		}
 
 		// Domain。
 		if strings.TrimSpace(target) != "" {
+			logger.Debug(
+				"rule: validated domain rule: target=%s proxy=%t",
+				target,
+				rule.Proxy,
+			)
+
 			continue
 		}
+
+		logger.Error(
+			"rule: validation failed: invalid target: %s",
+			target,
+		)
 
 		return fmt.Errorf(
 			"invalid rule target: %s",
 			target,
 		)
 	}
+
+	logger.Debug(
+		"rule: validation passed: count=%d",
+		len(rules),
+	)
 
 	return nil
 }
