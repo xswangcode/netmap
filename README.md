@@ -187,7 +187,7 @@ Client 使用 `rules` 判断目标是否需要通过 Relay。
 ### Domain
 
 ```text
-bastion.voyah.cn
+jd.com
 ```
 
 表示该域名所有端口。
@@ -197,13 +197,13 @@ bastion.voyah.cn
 ### Domain + Port
 
 ```text
-bastion.voyah.cn:443
+jd.com:443
 ```
 
 只匹配：
 
 ```text
-bastion.voyah.cn:443
+jd.com:443
 ```
 
 ---
@@ -252,7 +252,7 @@ configs/client.json
       "proxy": true
     },
     {
-      "target": "bastion.voyah.cn",
+      "target": "jd.com",
       "proxy": true
     }
   ]
@@ -286,7 +286,7 @@ configs/relay.json
       "10.82.51.66",
       "10.82.51.115",
       "10.223.127.130",
-      "bastion.voyah.cn"
+      "jd.com"
     ]
   }
 }
@@ -303,8 +303,8 @@ Relay 的 `allowedTargets` 用于限制 Relay 可以访问哪些目标。
 ```text
 10.82.51.231
 10.82.51.231:8080
-bastion.voyah.cn
-bastion.voyah.cn:443
+jd.com
+jd.com:443
 ```
 
 例如：
@@ -470,7 +470,7 @@ Port: 18080
 例如：
 
 ```text
-https://bastion.voyah.cn
+https://jd.com
 ```
 
 流程：
@@ -539,7 +539,7 @@ curl.exe -x http://127.0.0.1:18080 http://10.82.51.231:8080/
 ## HTTPS
 
 ```powershell
-curl.exe -k -x http://127.0.0.1:18080 https://bastion.voyah.cn/
+curl.exe -k -x http://127.0.0.1:18080 https://jd.com/
 ```
 
 ---
