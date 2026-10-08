@@ -6,7 +6,7 @@
     "port": 18080
   },
   "relay": {
-    "host": "192.168.0.29",
+    "host": "192.168.0.44",
     "port": 19000,
     "connectTimeoutSeconds": 10
   },
@@ -74,6 +74,20 @@
     {
       "target": "10.223.127.130",
       "proxy": true
+    }
+  ],
+  "mappings": [
+    {
+      "name": "DM数据库",
+      "enabled": true,
+      "listen": {
+        "host": "127.0.0.1",
+        "port": 15236
+      },
+      "target": {
+        "host": "10.82.51.115",
+        "port": 5236
+      }
     }
   ]
 }

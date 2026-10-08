@@ -160,7 +160,6 @@ func onReady(stopFunc func()) {
 		for {
 			select {
 			case <-openConfig.ClickedCh:
-				// 用户交互事件。
 				logger.Info(
 					"tray: menu clicked: action=open_config",
 				)
@@ -196,15 +195,13 @@ func onReady(stopFunc func()) {
 func setIcon() {
 	iconPath := app.AssetPath("netmap.ico")
 
-	logger.Debug(
+	logger.Info(
 		"tray: loading icon: path=%s",
 		iconPath,
 	)
 
 	data, err := os.ReadFile(iconPath)
 	if err != nil {
-		// 图标缺失不应阻止托盘运行，
-		// 但需要记录，便于排查"托盘无图标"问题。
 		logger.Error(
 			"tray: read icon failed: path=%s error=%v",
 			iconPath,
@@ -214,7 +211,44 @@ func setIcon() {
 		return
 	}
 
+	logger.Info(
+		"tray: icon loaded: path=%s size=%d",
+		iconPath,
+		len(data),
+	)
+
+	// ICO 文件至少需要包含基础文件头。
+	if len(data) < 22 {
+		logger.Error(
+			"tray: icon file is invalid or too small: path=%s size=%d",
+			iconPath,
+			len(data),
+		)
+
+		return
+	}
+
+	// ICO 文件头：
+	// 0-1：保留字段，必须为 0
+	// 2-3：类型，ICO 为 1
+	if data[0] != 0 ||
+		data[1] != 0 ||
+		data[2] != 1 ||
+		data[3] != 0 {
+		logger.Error(
+			"tray: invalid ico header: path=%s",
+			iconPath,
+		)
+
+		return
+	}
+
 	systray.SetIcon(data)
+
+	logger.Info(
+		"tray: icon set requested: path=%s",
+		iconPath,
+	)
 }
 
 // onExit 托盘退出时执行。

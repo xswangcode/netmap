@@ -1,216 +1,303 @@
-# NetMap
+# NetMap v0.3
 
-NetMap 是一个基于 TCP 的内网 IP 映射工具。
+NetMap 是一个基于 TCP 的轻量级网络代理与端口映射工具。
 
-用于解决：
+支持两种主要使用方式：
 
-> 客户端电脑无法直接访问目标服务，但跳板机电脑可以访问目标服务。
+1. **代理模式**：应用通过本地 HTTP / HTTPS / SOCKS5 代理访问目标服务。
+2. **TCP Mapping 模式**：将客户端电脑的本地 TCP 端口映射到远程目标服务。
 
-NetMap 在客户端电脑和跳板机电脑之间建立 TCP 转发通道，使客户端应用可以通过本地代理访问目标服务。
-
----
-
-## 1. v0.1 功能
-
-v0.1 支持：
-
-* HTTP Proxy
-* HTTPS Proxy（HTTP CONNECT）
-* SOCKS5 TCP CONNECT
-* Client 本地代理
-* Client 规则匹配
-* Client 直连 / Relay 转发
-* Relay 目标白名单
-* TCP 双向转发
-* IP / IP:Port
-* Domain / Domain:Port
-
-### 不支持
-
-v0.1 暂不支持：
-
-* UDP
-* SOCKS5 UDP
-* SOCKS5 BIND
-* VPN
-* TUN / TAP
-* NAT
-* DNS Proxy
-* TCP/UDP Tunnel
-* 加密
-* 压缩
-* 连接池
-* 多路复用
-* P2P 穿透
-* 自动发现
-* Web 管理后台
-* 用户管理
-* 集群
-
----
-
-# 2. 工作方式
-
-NetMap 由两个角色组成：
+NetMap 采用 **Client + Relay** 架构：
 
 ```text
-客户端电脑
-    │
-    │ NetMap Client
-    │
-    ▼
-跳板机电脑
-    │
-    │ NetMap Relay
-    │
-    ▼
-目标服务
+代理模式：
+
+应用
+ │
+ ▼
+Client
+127.0.0.1:18080
+ │
+ ├── 本机直连
+ │
+ └── Relay
+      │
+      ▼
+   Target
+
+
+TCP Mapping：
+
+应用
+ │
+ ▼
+127.0.0.1:15236
+ │
+ ▼
+Client
+ │
+ ▼
+Relay
+ │
+ ▼
+10.82.51.115:5236
 ```
 
-客户端电脑运行 Client。
+---
 
-跳板机电脑运行 Relay。
+# 一、v0.3 功能
+
+## 1. HTTP Proxy
+
+支持普通 HTTP 请求代理。
 
 例如：
 
 ```text
-客户端电脑
-127.0.0.1:18080
-       │
-       │
-       ▼
-跳板机电脑
-192.168.0.29:19000
-       │
-       │
-       ▼
-10.82.51.231:8080
+应用 → 127.0.0.1:18080 → Relay → 10.82.51.231:8080
 ```
 
 ---
 
-# 3. Client 和 Relay 的职责
+## 2. HTTPS Proxy
 
-## Client
+支持 HTTP CONNECT 方式建立 HTTPS TCP 隧道。
 
-Client 运行在客户端电脑。
+例如：
 
-负责：
-
-1. 接收本地应用的代理请求
-2. 识别 HTTP / HTTPS / SOCKS5
-3. 获取目标 Host 和 Port
-4. 根据 rules 判断是否使用 Relay
-5. 命中规则 → 通过 Relay
-6. 未命中规则 → 客户端电脑直接访问
-
----
-
-## Relay
-
-Relay 运行在跳板机电脑。
-
-负责：
-
-1. 接收 Client 连接
-2. 接收 Client 的目标地址
-3. 检查目标白名单
-4. 连接目标服务
-5. 进行 TCP 双向转发
-
-Relay 不负责解析 HTTP、HTTPS、SOCKS5。
+```text
+应用
+ ↓
+127.0.0.1:18080
+ ↓
+HTTP CONNECT
+ ↓
+Relay
+ ↓
+目标 HTTPS 服务
+```
 
 ---
 
-# 4. 规则逻辑
+## 3. SOCKS5 Proxy
 
-Client 使用 `rules` 判断目标是否需要通过 Relay。
+支持：
+
+* SOCKS5
+* NO AUTH
+* TCP CONNECT
+* IPv4
+* IPv6
+* Domain
+
+例如：
+
+```text
+应用
+ ↓
+SOCKS5
+ ↓
+127.0.0.1:18080
+ ↓
+Client
+ ↓
+Relay
+ ↓
+Target
+```
+
+---
+
+## 4. Client 代理规则
+
+Client 可以根据目标地址决定：
+
+* `proxy=true`：通过 Relay
+* `proxy=false`：本机直连
+
+支持：
+
+```text
+IP
+IP:Port
+Domain
+Domain:Port
+```
 
 例如：
 
 ```json
-"rules": [
-  {
-    "target": "10.82.51.231",
-    "proxy": true
-  }
-]
+{
+  "target": "10.82.51.231",
+  "proxy": true
+}
 ```
 
 表示：
 
 ```text
 10.82.51.231
-    ↓
-所有端口通过 Relay
 ```
 
-例如访问：
-
-```text
-10.82.51.231:80
-10.82.51.231:81
-10.82.51.231:8080
-10.82.51.231:8088
-```
-
-都会通过 Relay。
+所有端口都通过 Relay。
 
 ---
 
-## 4.1 支持的规则格式
+```json
+{
+  "target": "10.82.51.231:8080",
+  "proxy": true
+}
+```
 
-### IP
+表示只有：
+
+```text
+10.82.51.231:8080
+```
+
+通过 Relay。
+
+没有匹配到规则时：
+
+```text
+本机直连
+```
+
+---
+
+## 5. TCP Mapping
+
+v0.3 新增 TCP Mapping。
+
+可以把客户端电脑上的一个本地 TCP 端口映射到远程目标服务。
+
+例如：
+
+```text
+客户端电脑
+
+127.0.0.1:15236
+       │
+       ▼
+     Client
+       │
+       ▼
+Relay 192.168.0.44:19000
+       │
+       ▼
+10.82.51.115:5236
+```
+
+应用只需要访问：
+
+```text
+127.0.0.1:15236
+```
+
+不需要直接访问：
+
+```text
+10.82.51.115:5236
+```
+
+---
+
+## 6. Relay 目标白名单
+
+Relay 使用 `allowedTargets` 限制可以访问的目标。
+
+支持：
+
+```text
+IP
+IP:Port
+Domain
+Domain:Port
+```
+
+例如：
+
+```json
+"allowedTargets": [
+  "10.82.51.231",
+  "10.82.51.115",
+  "10.82.51.115:5236"
+]
+```
+
+其中：
 
 ```text
 10.82.51.231
 ```
 
-表示该 IP 所有端口。
+表示该 IP 的所有端口允许访问。
+
+而：
+
+```text
+10.82.51.115:5236
+```
+
+只允许访问该 IP 的 `5236` 端口。
+
+如果同时存在：
+
+```text
+10.82.51.115
+10.82.51.115:5236
+```
+
+则：
+
+```text
+10.82.51.115
+```
+
+优先，表示该 IP 的所有端口都允许。
 
 ---
 
-### IP + Port
+# 二、Client 和 Relay
 
-```text
-10.82.51.231:8080
-```
+NetMap 分为两个角色。
 
-只匹配：
+## Client
 
-```text
-10.82.51.231:8080
-```
+运行在需要使用代理或 TCP Mapping 的客户端电脑。
 
----
+负责：
 
-### Domain
-
-```text
-jd.com
-```
-
-表示该域名所有端口。
+* 接收本地代理请求
+* 处理 HTTP / HTTPS / SOCKS5
+* 根据规则决定直连或 Relay
+* 建立 TCP Mapping
+* 与 Relay 建立连接
 
 ---
 
-### Domain + Port
+## Relay
 
-```text
-jd.com:443
-```
+运行在可以访问目标网络的跳板机电脑。
 
-只匹配：
+负责：
 
-```text
-jd.com:443
-```
+* 接收 Client 连接
+* 解析 NetMap 内部协议
+* 校验目标白名单
+* 连接目标 TCP 服务
+* 转发 TCP 数据
+
+Relay 不解析 HTTP、HTTPS、SOCKS5，只处理 NetMap 内部 TCP 协议。
 
 ---
 
-# 5. Client 配置
+# 三、配置文件
 
-配置文件：
+## 1. Client 配置
+
+文件：
 
 ```text
 configs/client.json
@@ -221,12 +308,15 @@ configs/client.json
 ```json
 {
   "role": "client",
+  "log": {
+    "level": "DEBUG"
+  },
   "listen": {
     "host": "127.0.0.1",
     "port": 18080
   },
   "relay": {
-    "host": "192.168.0.29",
+    "host": "192.168.0.44",
     "port": 19000,
     "connectTimeoutSeconds": 10
   },
@@ -240,30 +330,375 @@ configs/client.json
       "proxy": true
     },
     {
-      "target": "10.82.51.66",
-      "proxy": true
-    },
-    {
       "target": "10.82.51.115",
       "proxy": true
-    },
+    }
+  ],
+  "mappings": [
     {
-      "target": "10.223.127.130",
-      "proxy": true
-    },
-    {
-      "target": "jd.com",
-      "proxy": true
+      "name": "DM数据库",
+      "enabled": true,
+      "listen": {
+        "host": "127.0.0.1",
+        "port": 15236
+      },
+      "target": {
+        "host": "10.82.51.115",
+        "port": 5236
+      }
     }
   ]
 }
 ```
 
+### Client 配置说明
+
+#### role
+
+```json
+"role": "client"
+```
+
+表示当前运行 NetMap Client。
+
 ---
 
-# 6. Relay 配置
+#### log.level
 
-配置文件：
+```json
+"log": {
+  "level": "DEBUG"
+}
+```
+
+支持：
+
+```text
+INFO
+DEBUG
+```
+
+如果不配置，默认：
+
+```text
+INFO
+```
+
+开发测试时可以使用：
+
+```text
+DEBUG
+```
+
+正式运行建议：
+
+```text
+INFO
+```
+
+---
+
+#### listen
+
+```json
+"listen": {
+  "host": "127.0.0.1",
+  "port": 18080
+}
+```
+
+Client 本地代理监听地址。
+
+默认使用：
+
+```text
+127.0.0.1:18080
+```
+
+应用配置代理时使用：
+
+```text
+HTTP Proxy: 127.0.0.1:18080
+SOCKS5:     127.0.0.1:18080
+```
+
+---
+
+#### relay
+
+```json
+"relay": {
+  "host": "192.168.0.44",
+  "port": 19000,
+  "connectTimeoutSeconds": 10
+}
+```
+
+配置 Relay 地址。
+
+例如：
+
+```text
+Relay IP:   192.168.0.44
+Relay Port: 19000
+```
+
+Client 必须能够访问 Relay 的 `19000` TCP 端口。
+
+---
+
+# 四、Client 代理规则
+
+规则配置：
+
+```json
+"rules": [
+  {
+    "target": "10.82.51.231",
+    "proxy": true
+  }
+]
+```
+
+## IP
+
+```json
+{
+  "target": "10.82.51.231",
+  "proxy": true
+}
+```
+
+表示：
+
+```text
+10.82.51.231:* → Relay
+```
+
+---
+
+## IP + Port
+
+```json
+{
+  "target": "10.82.51.231:8080",
+  "proxy": true
+}
+```
+
+表示：
+
+```text
+10.82.51.231:8080 → Relay
+```
+
+其他端口不匹配该规则。
+
+---
+
+## Domain
+
+```json
+{
+  "target": "example.com",
+  "proxy": true
+}
+```
+
+表示：
+
+```text
+example.com:* → Relay
+```
+
+---
+
+## Domain + Port
+
+```json
+{
+  "target": "example.com:443",
+  "proxy": true
+}
+```
+
+表示：
+
+```text
+example.com:443 → Relay
+```
+
+---
+
+## proxy=false
+
+例如：
+
+```json
+{
+  "target": "10.82.51.231",
+  "proxy": false
+}
+```
+
+表示：
+
+```text
+10.82.51.231:* → 本机直连
+```
+
+---
+
+## 没有匹配规则
+
+如果没有匹配到任何规则：
+
+```text
+本机直连
+```
+
+因此 NetMap Client 默认不是全局代理。
+
+---
+
+# 五、TCP Mapping 配置
+
+Mapping 配置：
+
+```json
+"mappings": [
+  {
+    "name": "DM数据库",
+    "enabled": true,
+    "listen": {
+      "host": "127.0.0.1",
+      "port": 15236
+    },
+    "target": {
+      "host": "10.82.51.115",
+      "port": 5236
+    }
+  }
+]
+```
+
+含义：
+
+```text
+本地：
+127.0.0.1:15236
+
+映射到：
+
+远程：
+10.82.51.115:5236
+```
+
+应用连接：
+
+```text
+127.0.0.1:15236
+```
+
+即可。
+
+---
+
+## enabled
+
+启用：
+
+```json
+"enabled": true
+```
+
+禁用：
+
+```json
+"enabled": false
+```
+
+禁用后不会监听对应端口。
+
+---
+
+## name
+
+```json
+"name": "DM数据库"
+```
+
+Mapping 名称。
+
+名称不能重复。
+
+---
+
+## listen
+
+```json
+"listen": {
+  "host": "127.0.0.1",
+  "port": 15236
+}
+```
+
+表示 Client 本地监听地址。
+
+---
+
+## target
+
+```json
+"target": {
+  "host": "10.82.51.115",
+  "port": 5236
+}
+```
+
+表示最终需要访问的目标服务。
+
+---
+
+## Mapping 注意事项
+
+Mapping 的目标仍然需要通过 Relay 的：
+
+```text
+allowedTargets
+```
+
+检查。
+
+例如 Mapping：
+
+```text
+10.82.51.115:5236
+```
+
+那么 Relay 至少需要允许：
+
+```json
+"allowedTargets": [
+  "10.82.51.115:5236"
+]
+```
+
+或者直接允许：
+
+```json
+"allowedTargets": [
+  "10.82.51.115"
+]
+```
+
+否则 Mapping 会连接失败。
+
+---
+
+# 六、Relay 配置
+
+文件：
 
 ```text
 configs/relay.json
@@ -274,6 +709,9 @@ configs/relay.json
 ```json
 {
   "role": "relay",
+  "log": {
+    "level": "DEBUG"
+  },
   "listen": {
     "host": "0.0.0.0",
     "port": 19000
@@ -285,169 +723,186 @@ configs/relay.json
       "10.82.51.33",
       "10.82.51.66",
       "10.82.51.115",
-      "10.223.127.130",
-      "jd.com"
+      "10.82.79.139",
+      "10.82.79.242",
+      "10.82.79.159",
+      "10.82.79.67",
+      "10.82.79.108",
+      "10.82.79.48",
+      "10.82.79.182",
+      "10.82.79.37",
+      "10.82.79.181",
+      "10.83.60.84",
+      "10.83.60.85",
+      "10.223.127.130"
     ]
   }
 }
 ```
 
+### Relay 配置说明
+
+#### role
+
+```json
+"role": "relay"
+```
+
+表示当前运行 NetMap Relay。
+
 ---
 
-# 7. Relay 白名单
+#### listen
 
-Relay 的 `allowedTargets` 用于限制 Relay 可以访问哪些目标。
+```json
+"listen": {
+  "host": "0.0.0.0",
+  "port": 19000
+}
+```
 
-支持：
+Relay 监听：
+
+```text
+0.0.0.0:19000
+```
+
+因此客户端电脑需要能够访问：
+
+```text
+Relay_IP:19000
+```
+
+---
+
+#### connectTimeoutSeconds
+
+```json
+"connectTimeoutSeconds": 10
+```
+
+Relay 连接目标服务的 TCP 超时时间，单位：
+
+```text
+秒
+```
+
+---
+
+#### allowedTargets
+
+```json
+"allowedTargets": [
+  "10.82.51.231",
+  "10.82.51.115"
+]
+```
+
+控制 Relay 最终允许访问哪些目标。
+
+如果目标不在白名单中：
+
+```text
+Client → Relay
+          ↓
+      白名单检查
+          ↓
+        拒绝
+```
+
+---
+
+# 七、如何启动
+
+NetMap 根据配置文件中的：
+
+```json
+"role"
+```
+
+决定运行模式。
+
+## 启动 Client
+
+使用：
+
+```text
+configs/client.json
+```
+
+启动 NetMap。
+
+Client 启动成功后，可以看到：
+
+```text
+client server listening addr=127.0.0.1:18080
+```
+
+如果配置了 Mapping，还会看到：
+
+```text
+mapping started name=DM数据库 listen=127.0.0.1:15236 target=10.82.51.115:5236
+```
+
+---
+
+## 启动 Relay
+
+使用：
+
+```text
+configs/relay.json
+```
+
+启动 NetMap。
+
+Relay 启动成功后：
+
+```text
+relay: server listening on 0.0.0.0:19000
+```
+
+---
+
+# 八、如何使用代理
+
+## HTTP
+
+将应用的 HTTP Proxy 设置为：
+
+```text
+127.0.0.1:18080
+```
+
+例如使用 curl：
+
+```bash
+curl -x http://127.0.0.1:18080 http://10.82.51.231:8080/
+```
+
+如果：
 
 ```text
 10.82.51.231
-10.82.51.231:8080
-jd.com
-jd.com:443
 ```
 
-例如：
+命中了：
 
 ```json
-"allowedTargets": [
-  "10.82.51.231"
-]
+{
+  "target": "10.82.51.231",
+  "proxy": true
+}
 ```
 
-表示：
+请求路径为：
 
 ```text
-10.82.51.231:80
-10.82.51.231:81
-10.82.51.231:8080
-10.82.51.231:8088
-```
-
-全部允许。
-
-如果配置：
-
-```json
-"allowedTargets": [
-  "10.82.51.231:8080"
-]
-```
-
-则只允许：
-
-```text
-10.82.51.231:8080
-```
-
----
-
-# 8. Client 和 Relay 的区别
-
-两者作用不同。
-
-## Client rules
-
-决定：
-
-> 这个请求要不要通过 Relay？
-
-例如：
-
-```text
-10.82.51.231 → Relay
-www.baidu.com → 直连
-```
-
----
-
-## Relay allowedTargets
-
-决定：
-
-> Relay 是否允许访问这个目标？
-
-例如：
-
-```text
-Client 请求：
-
-10.82.51.231:8080
-        ↓
-Client rules
-        ↓
-通过 Relay
-        ↓
-Relay allowedTargets
-        ↓
-允许
-        ↓
-10.82.51.231:8080
-```
-
-所以两边都需要配置。
-
----
-
-# 9. 启动
-
-## 9.1 启动 Relay
-
-在跳板机电脑执行：
-
-```powershell
-.\netmap.exe -config .\configs\relay.json
-```
-
-正常情况下：
-
-```text
-relay server listening on 0.0.0.0:19000
-```
-
----
-
-## 9.2 启动 Client
-
-在客户端电脑执行：
-
-```powershell
-.\netmap.exe -config .\configs\client.json
-```
-
-正常情况下：
-
-```text
-client server listening on 127.0.0.1:18080
-```
-
----
-
-# 10. 使用 HTTP Proxy
-
-客户端应用配置 HTTP Proxy：
-
-```text
-Host: 127.0.0.1
-Port: 18080
-```
-
-例如：
-
-```text
-http://10.82.51.231:8080/
-```
-
-请求流程：
-
-```text
-应用
+curl
  ↓
 127.0.0.1:18080
  ↓
 Client
- ↓
-rules
  ↓
 Relay
  ↓
@@ -456,27 +911,20 @@ Relay
 
 ---
 
-# 11. 使用 HTTPS Proxy
+## HTTPS
 
 HTTPS 使用 HTTP CONNECT。
 
-客户端 Proxy：
-
-```text
-Host: 127.0.0.1
-Port: 18080
-```
-
 例如：
 
-```text
-https://jd.com
+```bash
+curl -x http://127.0.0.1:18080 https://10.82.51.231:443/
 ```
 
 流程：
 
 ```text
-应用
+curl
  ↓
 HTTP CONNECT
  ↓
@@ -484,709 +932,445 @@ Client
  ↓
 Relay
  ↓
-目标 HTTPS 服务
-```
-
-CONNECT 建立成功以后，后续数据直接进行 TCP 双向转发。
-
-NetMap 不解析 HTTPS 加密内容。
-
----
-
-# 12. 使用 SOCKS5
-
-客户端应用配置：
-
-```text
-SOCKS5 Host: 127.0.0.1
-SOCKS5 Port: 18080
-```
-
-例如：
-
-```text
-10.82.51.231:8080
-```
-
-流程：
-
-```text
-应用
- ↓
-SOCKS5
- ↓
-Client
- ↓
-rules
- ↓
-Relay
- ↓
-目标服务
-```
-
----
-
-# 13. curl 测试
-
-## HTTP
-
-```powershell
-curl.exe -x http://127.0.0.1:18080 http://10.82.51.231:8080/
-```
-
----
-
-## HTTPS
-
-```powershell
-curl.exe -k -x http://127.0.0.1:18080 https://jd.com/
+Target
 ```
 
 ---
 
 ## SOCKS5
 
-```powershell
-curl.exe --socks5-hostname 127.0.0.1:18080 http://10.82.51.231:8080/
-```
-
----
-
-# 14. 网络要求
-
-客户端电脑必须能够访问跳板机电脑：
+将应用 SOCKS5 代理设置为：
 
 ```text
-客户端电脑
-      ↓
-192.168.0.29:19000
+127.0.0.1:18080
 ```
-
-可以测试：
-
-```powershell
-Test-NetConnection 192.168.0.29 -Port 19000
-```
-
-如果：
-
-```text
-TcpTestSucceeded : True
-```
-
-说明客户端可以连接 Relay。
-
-另外：
-
-```text
-跳板机电脑
-      ↓
-目标服务
-```
-
-必须能够访问目标服务。
 
 例如：
 
-```text
-跳板机电脑
-      ↓
-10.82.51.231:8080
+```bash
+curl --socks5 127.0.0.1:18080 http://10.82.51.231:8080/
 ```
 
 ---
 
-# 15. 配置文件
+# 九、如何使用 TCP Mapping
 
-项目默认配置：
+假设配置：
+
+```json
+{
+  "name": "DM数据库",
+  "enabled": true,
+  "listen": {
+    "host": "127.0.0.1",
+    "port": 15236
+  },
+  "target": {
+    "host": "10.82.51.115",
+    "port": 5236
+  }
+}
+```
+
+启动 Client 后，本机监听：
 
 ```text
-netmap/
-├── netmap.exe
-├── configs/
-│   ├── client.json
-│   └── relay.json
-└── ...
+127.0.0.1:15236
 ```
 
-启动时通过 `-config` 指定配置：
+应用不需要配置 HTTP Proxy，也不需要配置 SOCKS5。
 
-```powershell
-.\netmap.exe -config .\configs\client.json
-```
-
-或者：
-
-```powershell
-.\netmap.exe -config .\configs\relay.json
-```
-
-配置文件与程序分离，修改 IP、端口、规则时不需要重新编译程序。
-
----
-
-# 16. v0.1 架构
+直接连接：
 
 ```text
-                    NetMap v0.1
-
-┌──────────────────────┐
-│     客户端电脑        │
-│                      │
-│  Application         │
-│       │              │
-│       ▼              │
-│  NetMap Client       │
-│       │              │
-│       │ rules        │
-└───────┼──────────────┘
-        │
-        │ TCP
-        │
-        ▼
-┌──────────────────────┐
-│     跳板机电脑        │
-│                      │
-│  NetMap Relay        │
-│       │              │
-│       │ whitelist    │
-│       ▼              │
-└───────┼──────────────┘
-        │
-        │ TCP
-        ▼
-┌──────────────────────┐
-│       Target         │
-│                      │
-│  IP / Domain:Port    │
-└──────────────────────┘
+127.0.0.1:15236
 ```
 
----
-
-# 17. v0.1 核心原则
-
-NetMap v0.1 不做 VPN。
-
-也不修改操作系统路由表。
-
-也不接管所有网络流量。
-
-它本质上是：
+NetMap 会自动完成：
 
 ```text
 应用
  ↓
-本地代理
+127.0.0.1:15236
  ↓
-规则判断
+Client
  ↓
-TCP Relay
+Relay 192.168.0.44:19000
  ↓
-目标服务
-```
-
-只有配置到 `rules` 中的目标才会通过 Relay。
-
-没有命中规则的请求，直接从客户端电脑访问目标。
-
----
-
-# 18. 当前版本限制
-
-v0.1 是一个简单的 TCP 代理 / Relay 工具。
-
-当前设计重点是：
-
-```text
-简单
-稳定
-配置明确
-容易部署
-容易调试
-```
-
-暂时不追求：
-
-```text
-VPN
-复杂网络隧道
-高性能多路复用
-分布式
-集群
-Web 管理
-```
-
-后续功能根据实际使用需求逐步增加。
-
----
-
-# 19. v0.2 更新
-
-v0.2 不改变 v0.1 的 TCP 代理和 Relay 核心功能。
-
-主要针对 Windows 下的运行方式、进程管理和使用体验进行了完善。
-
-v0.2 新增：
-
-* Windows 系统托盘
-* NetMap 托盘图标
-* Client / Relay 运行状态显示
-* 后台运行
-* Windows 单实例
-* 日志文件
-* 配置文件路径统一管理
-* 日志目录统一管理
-* 程序资源路径统一管理
-* Client / Relay 启动 BAT
-* Windows GUI 模式构建
-
----
-
-# 20. v0.2 Windows 托盘
-
-NetMap v0.2 支持 Windows 系统托盘运行。
-
-启动后不会要求用户一直操作控制台，可以在系统托盘中查看 NetMap。
-
-托盘根据当前运行角色显示：
-
-```text
-NetMap
- ├── Client 运行中
- ├── 打开配置
- ├── 查看日志
- └── 退出
-```
-
-Relay 则显示：
-
-```text
-NetMap
- ├── Relay 运行中
- ├── 打开配置
- ├── 查看日志
- └── 退出
+10.82.51.115:5236
 ```
 
 ---
 
-# 21. v0.2 后台运行
+# 十、网络要求
 
-v0.2 支持 Windows GUI 模式构建。
+Client 和 Relay 之间需要能够建立 TCP 连接。
 
-正式构建：
+例如：
 
-```powershell
-go build -ldflags="-H=windowsgui" -o netmap.exe ./cmd/netmap
+```text
+Client
+  │
+  │ TCP 19000
+  ▼
+Relay
 ```
 
-这样启动 NetMap 时不会显示黑色控制台窗口。
+需要保证：
 
-NetMap 会作为后台程序运行，并通过系统托盘进行操作。
+```text
+Client → Relay:19000
+```
+
+网络可达。
+
+Relay 到目标服务也必须可达：
+
+```text
+Relay → Target:Port
+```
+
+例如：
+
+```text
+Relay → 10.82.51.115:5236
+```
+
+如果 Client 可以连接 Relay，但是 Relay 无法连接目标服务，代理或 Mapping 仍然无法正常工作。
 
 ---
 
-# 22. v0.2 启动脚本
+# 十一、日志
 
-项目提供 BAT 启动脚本：
+日志等级：
 
-```text
-BAT/
-├── start-client.bat
-└── start-relay.bat
+```json
+"log": {
+  "level": "INFO"
+}
 ```
 
-## 启动 Client
+或者：
 
-双击：
-
-```text
-BAT/start-client.bat
+```json
+"log": {
+  "level": "DEBUG"
+}
 ```
 
-等价于：
+### INFO
 
-```powershell
-.\netmap.exe -config .\configs\client.json
+适合正常运行。
+
+主要记录：
+
+* 服务启动
+* 服务停止
+* 连接成功
+* 错误
+
+### DEBUG
+
+适合排查问题。
+
+会额外记录：
+
+* 规则匹配
+* Relay 连接过程
+* Mapping 连接过程
+* SOCKS5 协议处理
+* 白名单匹配
+* TCP 转发信息
+
+---
+
+# 十二、常见问题
+
+## 1. Client 启动失败
+
+首先检查：
+
+```text
+127.0.0.1:18080
+```
+
+是否已经被其他程序占用。
+
+Mapping 也需要检查对应本地端口是否被占用，例如：
+
+```text
+127.0.0.1:15236
 ```
 
 ---
 
-## 启动 Relay
+## 2. Client 无法连接 Relay
 
-双击：
+检查：
 
 ```text
-BAT/start-relay.bat
+Client relay.host
+Client relay.port
 ```
 
-等价于：
+例如：
 
-```powershell
-.\netmap.exe -config .\configs\relay.json
+```json
+"relay": {
+  "host": "192.168.0.44",
+  "port": 19000
+}
 ```
 
-因此部署后不需要每次手动输入 PowerShell 命令。
+并确认：
+
+```text
+Client → 192.168.0.44:19000
+```
+
+网络可达。
 
 ---
 
-# 23. v0.2 单实例
+## 3. Relay 提示目标不允许
 
-v0.2 增加 Windows 单实例机制。
-
-同一台电脑上只能运行一个 NetMap 实例。
-
-例如已经运行：
+如果日志出现：
 
 ```text
-NetMap Client
+target is not allowed
 ```
 
-再次启动：
+说明目标没有配置到：
 
 ```text
-NetMap Client
+allowedTargets
 ```
 
-不会重复启动第二个 NetMap 进程。
-
-这样可以避免：
+例如需要访问：
 
 ```text
-多个 Client 同时监听 127.0.0.1:18080
+10.82.51.115:5236
+```
+
+可以配置：
+
+```json
+"allowedTargets": [
+  "10.82.51.115:5236"
+]
+```
+
+或者：
+
+```json
+"allowedTargets": [
+  "10.82.51.115"
+]
+```
+
+---
+
+## 4. Relay 可以连接，但是目标服务连接失败
+
+检查 Relay 到目标服务之间的网络。
+
+例如：
+
+```text
+Relay
+ ↓
+10.82.51.115:5236
+```
+
+需要确认 Relay 机器本身能够访问目标地址和端口。
+
+---
+
+## 5. Mapping 连接失败
+
+检查三个地方：
+
+```text
+1. Client Mapping 是否 enabled=true
+2. 本地 Mapping 端口是否被占用
+3. Relay allowedTargets 是否允许 Target
+```
+
+例如：
+
+```text
+127.0.0.1:15236
+        ↓
+10.82.51.115:5236
+```
+
+Relay 必须允许：
+
+```text
+10.82.51.115
 ```
 
 或者：
 
 ```text
-多个 Relay 同时监听相同端口
-```
-
-造成端口冲突。
-
----
-
-# 24. v0.2 日志
-
-v0.2 增加日志文件。
-
-日志目录：
-
-```text
-logs/
-```
-
-日志文件：
-
-```text
-logs/netmap.log
-```
-
-程序启动、配置加载、Client / Relay 启动、停止以及运行过程中的错误都会写入日志。
-
-例如：
-
-```text
-logs/
-└── netmap.log
-```
-
-日志使用程序目录作为基础路径，不依赖当前 PowerShell 工作目录。
-
----
-
-# 25. v0.2 目录结构
-
-当前项目结构：
-
-```text
-netmap/
-├── BAT/
-│   ├── start-client.bat
-│   └── start-relay.bat
-│
-├── assets/
-│   └── netmap.ico
-│
-├── cmd/
-│   ├── netmap/
-│   │   └── main.go
-│   └── netmap-test/
-│       └── main.go
-│
-├── configs/
-│   ├── client.json
-│   ├── relay.json
-│   └── test.json
-│
-├── internal/
-│   ├── app/
-│   │   └── path.go
-│   │
-│   ├── client/
-│   │   ├── server.go
-│   │   └── connection.go
-│   │
-│   ├── config/
-│   │   └── config.go
-│   │
-│   ├── forward/
-│   │   └── tcp.go
-│   │
-│   ├── logger/
-│   │   └── logger.go
-│   │
-│   ├── protocol/
-│   │   ├── http.go
-│   │   ├── socks5.go
-│   │   └── netmap.go
-│   │
-│   ├── relay/
-│   │   ├── server.go
-│   │   └── connection.go
-│   │
-│   ├── rule/
-│   │   └── matcher.go
-│   │
-│   ├── singleinstance/
-│   │   └── singleinstance_windows.go
-│   │
-│   ├── target/
-│   │   └── whitelist.go
-│   │
-│   └── tray/
-│       └── tray.go
-│
-├── logs/
-│   └── netmap.log
-│
-├── go.mod
-├── go.sum
-└── README.md
+10.82.51.115:5236
 ```
 
 ---
 
-# 26. v0.2 程序路径
+# 十三、配置校验
 
-v0.2 统一使用 `netmap.exe` 所在目录作为程序根目录。
+NetMap 启动时会自动检查配置。
 
-例如：
+Client 会检查：
 
-```text
-netmap/
-├── netmap.exe
-├── configs/
-├── logs/
-└── assets/
-```
+* `role`
+* `listen`
+* `relay`
+* `rules`
+* `mappings`
 
-程序会根据自身位置查找：
+Relay 会检查：
 
-```text
-configs/
-logs/
-assets/
-```
+* `role`
+* `listen`
+* `target`
+* `allowedTargets`
 
-因此不要求用户必须从项目根目录启动。
+Mapping 会检查：
 
-例如：
+* 名称不能为空
+* 名称不能重复
+* 本地监听地址有效
+* 本地监听端口有效
+* Mapping 监听地址不能和主 Proxy 监听地址重复
+* 目标地址有效
+* 目标端口有效
 
-```powershell
-D:\NetMap\netmap.exe
-```
-
-程序会使用：
-
-```text
-D:\NetMap\configs\
-D:\NetMap\logs\
-D:\NetMap\assets\
-```
+配置错误时 NetMap 会直接返回错误，不会继续启动。
 
 ---
 
-# 27. v0.2 配置打开
+# 十四、v0.3 目录
 
-可以通过系统托盘：
+推荐发布目录：
 
 ```text
-NetMap
- ↓
-打开配置
+NetMap-v0.3/
+├─ netmap.exe
+├─ configs/
+│  ├─ client.json
+│  └─ relay.json
+├─ assets/
+│  └─ netmap.ico
+├─ logs/
+└─ README.md
 ```
 
-直接打开当前运行角色对应的配置文件。
+其中：
 
-Client：
+```text
+netmap.exe
+```
+
+为 NetMap 主程序。
 
 ```text
 configs/client.json
 ```
 
-Relay：
+为 Client 配置。
 
 ```text
 configs/relay.json
 ```
 
----
-
-# 28. v0.2 日志查看
-
-可以通过系统托盘：
-
-```text
-NetMap
- ↓
-查看日志
-```
-
-直接打开：
+为 Relay 配置。
 
 ```text
 logs/
 ```
 
-方便查看运行日志。
+用于保存运行日志。
 
 ---
 
-# 29. v0.2 退出
-
-可以通过系统托盘：
+# 十五、v0.3 架构
 
 ```text
-NetMap
- ↓
-退出
-```
-
-退出时会：
-
-```text
-托盘
- ↓
-停止 Client / Relay
- ↓
-关闭监听
- ↓
-关闭日志
- ↓
-退出 NetMap
-```
-
----
-
-# 30. v0.2 核心变化
-
-v0.2 不改变 NetMap 的核心网络架构。
-
-网络部分仍然是：
-
-```text
-应用
- ↓
-Client
- ↓
-rules
- ↓
-Relay
- ↓
-allowedTargets
- ↓
-目标服务
-```
-
-增加的主要是 Windows 运行层：
-
-```text
-                NetMap
-
-┌──────────────────────────┐
-│      Windows 托盘         │
-│                          │
-│  Client / Relay 状态      │
-│  打开配置                 │
-│  查看日志                 │
-│  退出                     │
-└────────────┬─────────────┘
-             │
-             ▼
-┌──────────────────────────┐
-│       NetMap 服务         │
-│                          │
-│  Client / Relay          │
-│                          │
-│  TCP Proxy / TCP Relay   │
-└──────────────────────────┘
+                    ┌─────────────────────┐
+                    │      Target         │
+                    │ 10.82.51.115:5236  │
+                    └──────────▲──────────┘
+                               │
+                               │ TCP
+                               │
+                    ┌──────────┴──────────┐
+                    │       Relay         │
+                    │ 192.168.0.44:19000  │
+                    │                     │
+                    │  allowedTargets     │
+                    └──────────▲──────────┘
+                               │
+                               │ NetMap TCP
+                               │
+                    ┌──────────┴──────────┐
+                    │       Client        │
+                    │ 127.0.0.1:18080     │
+                    │                     │
+                    │ rules               │
+                    │ mappings            │
+                    └──────────▲──────────┘
+                               │
+                ┌──────────────┴──────────────┐
+                │                             │
+          Proxy 请求                    TCP Mapping
+                │                             │
+        127.0.0.1:18080                127.0.0.1:15236
+                │                             │
+                └─────────────┬───────────────┘
+                              │
+                              ▼
+                           应用
 ```
 
 ---
 
-# 31. 当前版本
+# 十六、版本
 
-当前版本为：
+当前版本：
 
 ```text
-v0.2
+NetMap v0.3
 ```
 
-v0.2 的核心定位：
+v0.3 相比之前版本主要增加：
 
 ```text
-v0.1
-TCP 代理 / Relay 核心功能
-
-        +
-
-v0.2
-Windows 运行体验
+TCP Mapping
 ```
 
 即：
 
 ```text
-TCP Proxy
-+
-TCP Relay
-+
-Rules
-+
-Whitelist
-+
-Windows Tray
-+
-后台运行
-+
-单实例
-+
-日志
-+
-启动脚本
+本地 TCP 端口
+      ↓
+Client
+      ↓
+Relay
+      ↓
+远程 TCP 服务
 ```
 
----
-
-# 32. 后续功能
-
-当前版本暂不增加复杂网络能力。
-
-后续如果有实际需求，再考虑：
+同时保留：
 
 ```text
-UDP
-SOCKS5 UDP
-VPN / TUN
-加密
-连接池
-多路复用
-配置热加载
-Windows Service
-Web 管理
-用户认证
+HTTP Proxy
+HTTPS CONNECT Proxy
+SOCKS5 TCP CONNECT
+Client Rules
+Relay allowedTargets
+Windows 客户端运行支持
+日志
+配置文件驱动
 ```
-
-这些功能不属于当前 v0.2 的范围。

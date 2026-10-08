@@ -20,11 +20,15 @@ import (
 // 4. 命中规则时连接 Relay
 // 5. 未命中规则时本机直接连接目标
 // 6. 进行 TCP 双向数据转发
+// 7. 提供固定 TCP 端口 Mapping
 type Server struct {
 	config  *config.Config
 	matcher *rule.Matcher
 
 	listener net.Listener
+
+	// mappingListeners 保存所有 Mapping 对应的 Listener。
+	mappingListeners map[string]net.Listener
 
 	started chan struct{}
 
@@ -34,15 +38,17 @@ type Server struct {
 // NewServer 创建 Client Server。
 func NewServer(config *config.Config) *Server {
 	return &Server{
-		config:  config,
-		matcher: rule.NewMatcher(config.Rules),
-		started: make(chan struct{}),
+		config:           config,
+		matcher:          rule.NewMatcher(config.Rules),
+		mappingListeners: make(map[string]net.Listener),
+		started:          make(chan struct{}),
 	}
 }
 
 // Started 返回 Client 启动完成通知。
 //
-// 当监听端口成功后，该 Channel 会收到通知。
+// 当主监听端口以及所有启用的 Mapping 监听端口
+// 全部成功启动后，该 Channel 会收到通知。
 func (s *Server) Started() <-chan struct{} {
 	return s.started
 }
@@ -67,7 +73,11 @@ func (s *Server) Start() error {
 	s.listener = listener
 	s.mu.Unlock()
 
+	// 如果后续 Mapping 启动失败，
+	// 主 Listener 也需要关闭。
 	defer func() {
+		s.stopMappings()
+
 		s.mu.Lock()
 		s.listener = nil
 		s.mu.Unlock()
@@ -79,6 +89,16 @@ func (s *Server) Start() error {
 		"client server listening addr=%s",
 		addr,
 	)
+
+	// 启动固定 TCP Mapping。
+	if err := s.startMappings(); err != nil {
+		logger.Error(
+			"start mappings failed error=%v",
+			err,
+		)
+
+		return err
+	}
 
 	close(s.started)
 
@@ -98,6 +118,7 @@ func (s *Server) Start() error {
 				"accept client connection failed error=%v",
 				err,
 			)
+
 			continue
 		}
 
@@ -108,20 +129,24 @@ func (s *Server) Start() error {
 // Stop 停止 Client Server。
 func (s *Server) Stop() {
 	s.mu.Lock()
+
 	listener := s.listener
 	s.listener = nil
+
 	s.mu.Unlock()
 
-	if listener == nil {
-		return
+	if listener != nil {
+		logger.Info("stopping client server")
+
+		// 停止主 Proxy Listener。
+		if err := listener.Close(); err != nil {
+			logger.Error(
+				"close client listener failed error=%v",
+				err,
+			)
+		}
 	}
 
-	logger.Info("stopping client server")
-
-	if err := listener.Close(); err != nil {
-		logger.Error(
-			"close client listener failed error=%v",
-			err,
-		)
-	}
+	// 无论主 Listener 是否存在，都停止所有 Mapping Listener。
+	s.stopMappings()
 }

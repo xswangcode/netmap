@@ -14,27 +14,16 @@ import (
 //
 // Relay 不解析 HTTP、HTTPS、SOCKS5，
 // 只负责解析 Client 和 Relay 之间的 NetMap 协议。
-//
-// 日志级别约定：
-//   - logger.Debug：连接级细节（地址、目标解析、转发开始/结束）
-//   - logger.Info ：应用层面关键事件（客户端接入、成功连通目标、连接关闭）
-//   - logger.Error：任何出错路径
 func (s *Server) handleConnection(conn net.Conn) {
 	defer conn.Close()
 
 	remote := conn.RemoteAddr().String()
 	local := conn.LocalAddr().String()
 
-	// 应用层面：有客户端接入。
-	logger.Info(
+	logger.Debug(
 		"relay: client connected remote=%s local=%s",
 		remote,
 		local,
-	)
-
-	logger.Debug(
-		"relay: reading connect request remote=%s",
-		remote,
 	)
 
 	request, err := protocol.ReadConnectRequest(conn)
@@ -59,15 +48,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 		target,
 	)
 
-	// 检查目标 IP + Port 是否允许。
-	//
-	// 白名单支持：
-	//
-	// 10.82.51.231
-	//     → 允许该 IP 所有端口
-	//
-	// 10.82.51.232:8080
-	//     → 只允许 8080
 	if !s.isTargetAllowed(
 		request.Host,
 		request.Port,
@@ -121,7 +101,14 @@ func (s *Server) handleConnection(conn net.Conn) {
 
 		return
 	}
+
 	defer targetConn.Close()
+
+	logger.Debug(
+		"relay: target tcp connected remote=%s target=%s",
+		remote,
+		target,
+	)
 
 	if err := protocol.WriteConnectResponse(
 		conn,
@@ -139,9 +126,8 @@ func (s *Server) handleConnection(conn net.Conn) {
 		return
 	}
 
-	// 应用层面：成功建立到目标后端的连接。
-	logger.Debug(
-		"relay: target connected remote=%s target=%s",
+	logger.Info(
+		"relay: connect success remote=%s target=%s",
 		remote,
 		target,
 	)
@@ -157,7 +143,6 @@ func (s *Server) handleConnection(conn net.Conn) {
 		targetConn,
 	)
 
-	// 应用层面：连接生命周期结束。
 	logger.Debug(
 		"relay: connection closed remote=%s target=%s",
 		remote,
