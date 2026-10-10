@@ -1,13 +1,12 @@
 {
   "role": "client",
-  "log_level": "DEBUG",
   "listen": {
     "host": "127.0.0.1",
-    "port": 18080
+    "port": 17080
   },
   "relay": {
     "host": "192.168.0.44",
-    "port": 19000,
+    "port": 17000,
     "connectTimeoutSeconds": 10
   },
   "rules": [
@@ -89,5 +88,8 @@
         "port": 5236
       }
     }
-  ]
+  ],
+  "log": {
+    "level": "DEBUG"
+  }
 }

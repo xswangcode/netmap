@@ -20,7 +20,7 @@ import (
 // 4. 连接目标服务
 // 5. 进行 TCP 双向数据转发
 type Server struct {
-	config    *config.Config
+	config    *config.RelayConfig
 	whitelist *target.Whitelist
 
 	listener net.Listener
@@ -31,13 +31,16 @@ type Server struct {
 }
 
 // NewServer 创建 Relay Server。
-func NewServer(config *config.Config) *Server {
+func NewServer(
+	cfg *config.RelayConfig,
+) *Server {
+
 	whitelist, err := target.NewWhitelist(
-		config.Target.AllowedTargets,
+		cfg.Target.AllowedTargets,
 	)
+
 	if err != nil {
-		// 配置在启动阶段就非法，属于致命错误。
-		// 这里保留 panic 语义，但把日志级别标为 Error 以便记录。
+
 		logger.Error(
 			"relay: create whitelist failed: %v",
 			err,
@@ -48,13 +51,17 @@ func NewServer(config *config.Config) *Server {
 
 	logger.Debug(
 		"relay: server created: allowed_targets=%d",
-		len(config.Target.AllowedTargets),
+		len(cfg.Target.AllowedTargets),
 	)
 
 	return &Server{
-		config:    config,
+		config: cfg,
+
 		whitelist: whitelist,
-		started:   make(chan struct{}),
+
+		started: make(
+			chan struct{},
+		),
 	}
 }
 
@@ -62,11 +69,13 @@ func NewServer(config *config.Config) *Server {
 //
 // 当监听端口成功后，该 Channel 会收到通知。
 func (s *Server) Started() <-chan struct{} {
+
 	return s.started
 }
 
 // Start 启动 Relay Server。
 func (s *Server) Start() error {
+
 	addr := fmt.Sprintf(
 		"%s:%d",
 		s.config.Listen.Host,
@@ -78,8 +87,13 @@ func (s *Server) Start() error {
 		addr,
 	)
 
-	listener, err := net.Listen("tcp", addr)
+	listener, err := net.Listen(
+		"tcp",
+		addr,
+	)
+
 	if err != nil {
+
 		logger.Error(
 			"relay: listen failed: addr=%s error=%v",
 			addr,
@@ -93,35 +107,49 @@ func (s *Server) Start() error {
 	}
 
 	s.mu.Lock()
+
 	s.listener = listener
+
 	s.mu.Unlock()
 
 	defer func() {
+
 		s.mu.Lock()
+
 		s.listener = nil
+
 		s.mu.Unlock()
 
 		_ = listener.Close()
+
 	}()
 
-	// 应用层面：服务已就绪。
 	logger.Info(
 		"relay: server listening on %s",
 		addr,
 	)
 
-	close(s.started)
+	close(
+		s.started,
+	)
 
 	for {
+
 		conn, err := listener.Accept()
+
 		if err != nil {
+
 			s.mu.Lock()
+
 			stopped := s.listener == nil
+
 			s.mu.Unlock()
 
 			if stopped {
-				// 应用层面：正常停止。
-				logger.Info("relay: server stopped")
+
+				logger.Info(
+					"relay: server stopped",
+				)
 
 				return nil
 			}
@@ -139,27 +167,38 @@ func (s *Server) Start() error {
 			conn.RemoteAddr(),
 		)
 
-		go s.handleConnection(conn)
+		go s.handleConnection(
+			conn,
+		)
 	}
 }
 
 // Stop 停止 Relay Server。
 func (s *Server) Stop() {
+
 	s.mu.Lock()
+
 	listener := s.listener
+
 	s.listener = nil
+
 	s.mu.Unlock()
 
 	if listener == nil {
-		logger.Debug("relay: stop ignored, server not running")
+
+		logger.Debug(
+			"relay: stop ignored, server not running",
+		)
 
 		return
 	}
 
-	// 应用层面：开始停止。
-	logger.Info("relay: stopping server")
+	logger.Info(
+		"relay: stopping server",
+	)
 
 	if err := listener.Close(); err != nil {
+
 		logger.Error(
 			"relay: close listener failed: %v",
 			err,
@@ -172,5 +211,9 @@ func (s *Server) isTargetAllowed(
 	host string,
 	port uint16,
 ) bool {
-	return s.whitelist.Allow(host, port)
+
+	return s.whitelist.Allow(
+		host,
+		port,
+	)
 }

@@ -1,0 +1,461 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NetMap 管理控制台</title>
+<style>
+:root{color-scheme:light;--bg:#f4f7fb;--panel:#fff;--text:#182230;--muted:#667085;--line:#e5eaf1;--primary:#356df3;--primary-dark:#2455cf;--soft:#edf3ff;--green:#15966a;--red:#d64545;--amber:#a76a12;--shadow:0 8px 28px rgba(22,42,75,.06);--radius:16px}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif;color:var(--text)}
+button,input,select,textarea{font:inherit}button{cursor:pointer}
+.app{min-height:100vh;display:grid;grid-template-columns:248px minmax(0,1fr)}
+.sidebar{background:#111c31;color:#dce5f5;padding:24px 16px;display:flex;flex-direction:column;gap:28px}
+.brand{display:flex;align-items:center;gap:12px;padding:0 10px}.brand-mark{width:38px;height:38px;border-radius:12px;background:linear-gradient(135deg,#77a4ff,#356df3);display:grid;place-items:center;color:#fff;font-size:20px;font-weight:800;box-shadow:0 6px 18px #356df344}.brand-name{font-size:17px;font-weight:750;letter-spacing:.2px}.brand-sub{font-size:11px;color:#91a2bd;margin-top:1px}
+.nav-label{font-size:11px;letter-spacing:1.2px;color:#7789a7;padding:0 12px;margin-bottom:8px}.nav{display:grid;gap:6px}.nav button{border:0;color:#bdc9dc;background:transparent;text-align:left;border-radius:10px;padding:12px;display:flex;gap:11px;align-items:center}.nav button:hover{background:#ffffff0c;color:#fff}.nav button.active{background:#2c4c88;color:#fff;box-shadow:inset 3px 0 #82a9ff}.nav-icon{width:22px;text-align:center;font-size:16px}.sidebar-foot{margin-top:auto;border:1px solid #293850;border-radius:12px;padding:14px;color:#9aabc4;font-size:12px}.sidebar-foot strong{display:block;color:#e7edf8;font-size:13px;margin-bottom:4px}
+main{min-width:0;padding:28px clamp(18px,3vw,44px) 40px}.topbar{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:28px}.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:1.3px;color:var(--primary);font-weight:750}.page-title{font-size:27px;letter-spacing:-.7px;margin:4px 0 5px;font-weight:760}.page-desc{color:var(--muted);margin:0}.top-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.status-pill{display:inline-flex;align-items:center;gap:7px;padding:8px 11px;background:#fff;border:1px solid var(--line);border-radius:999px;color:#526174;font-size:12px}.dot{width:7px;height:7px;border-radius:50%;background:#b7c1ce}.dot.ok{background:#20ae7a;box-shadow:0 0 0 3px #20ae7a20}.dot.bad{background:#df5151}
+.btn{border:1px solid var(--line);background:#fff;color:#344054;border-radius:10px;padding:9px 13px;font-weight:650;display:inline-flex;align-items:center;justify-content:center;gap:7px;transition:.15s}.btn:hover{border-color:#b7c8e5;background:#f9fbff}.btn.primary{background:var(--primary);border-color:var(--primary);color:#fff;box-shadow:0 4px 10px #356df326}.btn.primary:hover{background:var(--primary-dark)}.btn.danger{color:var(--red)}.btn.small{padding:6px 9px;font-size:12px;border-radius:8px}.btn.ghost{border-color:transparent;background:transparent;color:var(--muted)}.btn:disabled{opacity:.5;cursor:not-allowed}
+.role-tabs{display:flex;gap:4px;background:#e9eef6;border-radius:12px;padding:4px;width:max-content;margin-bottom:22px}.role-tab{border:0;background:transparent;padding:9px 18px;border-radius:9px;color:#667085;font-weight:700}.role-tab.active{background:#fff;color:var(--primary);box-shadow:0 2px 7px #1b355010}
+.summary-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:22px}.summary-card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:17px 19px;box-shadow:var(--shadow);display:flex;gap:13px;align-items:center}.summary-icon{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--soft);color:var(--primary);font-size:19px}.summary-label{color:var(--muted);font-size:12px}.summary-value{font-size:19px;font-weight:760;margin-top:2px}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:20px;align-items:start}.main-col,.side-col{display:grid;gap:18px;min-width:0}.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}.panel-head{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:20px 22px;border-bottom:1px solid #edf0f5}.panel-title{font-size:16px;font-weight:760;margin:0}.panel-sub{color:var(--muted);font-size:12px;margin:4px 0 0}.panel-body{padding:20px 22px}.section-kicker{font-size:11px;letter-spacing:1px;text-transform:uppercase;color:#8a96a8;font-weight:750;margin:0 0 13px}
+.field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.field{min-width:0}.field.full{grid-column:1/-1}.field label{display:block;font-weight:650;font-size:12px;color:#465366;margin-bottom:6px}.field input,.field select,.field textarea,.json-editor{width:100%;border:1px solid #dbe2ec;border-radius:9px;background:#fff;padding:10px 11px;color:var(--text);outline:none;transition:border-color .15s,box-shadow .15s}.field input:focus,.field select:focus,.field textarea:focus,.json-editor:focus{border-color:#7ca0f9;box-shadow:0 0 0 3px #356df31a}.field input[type=checkbox]{width:16px;height:16px;accent-color:var(--primary)}.field-help{font-size:11px;color:#8994a5;margin-top:5px}.field input[type=number]{font-variant-numeric:tabular-nums}
+.rules-list{display:grid;gap:10px}.rule-row{border:1px solid var(--line);border-radius:12px;padding:14px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}.rule-main{min-width:0}.rule-target{font-weight:750;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:13px;overflow-wrap:anywhere}.rule-meta{display:flex;gap:7px;align-items:center;margin-top:7px;flex-wrap:wrap}.tag{font-size:11px;border-radius:6px;padding:3px 7px;background:#f0f3f8;color:#617084}.tag.proxy{background:#e8f1ff;color:#2d62cc}.tag.direct{background:#e7f8f0;color:#13825b}.rule-actions{display:flex;align-items:center;gap:4px}.switch{appearance:none;width:34px;height:20px;border-radius:999px;background:#c9d2df;position:relative;cursor:pointer;transition:.2s;vertical-align:middle}.switch:before{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#fff;top:3px;left:3px;box-shadow:0 1px 3px #0002;transition:.2s}.switch:checked{background:var(--primary)}.switch:checked:before{left:17px}
+.empty{border:1px dashed #d5deea;border-radius:12px;padding:28px 18px;text-align:center;color:var(--muted)}.empty-icon{font-size:24px;margin-bottom:8px;color:#9aa8bc}.empty strong{display:block;color:#465366;margin-bottom:4px}
+.object-list{display:grid;gap:12px}.object-card{border:1px solid var(--line);border-radius:12px;overflow:hidden}.object-card-head{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:#fafbfd;border-bottom:1px solid #edf0f5}.object-card-title{font-weight:720;font-size:13px}.object-card-body{padding:15px}.nested{border-left:2px solid #e8edf5;padding-left:14px;margin:5px 0 5px 2px}.kv-list{display:grid;gap:12px}.kv-row{display:grid;grid-template-columns:minmax(110px,.7fr) minmax(0,1.3fr) auto;gap:10px;align-items:start}.kv-row .field{margin:0}.key-input{font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.array-label{display:flex;justify-content:space-between;align-items:center;margin:0 0 10px}
+.side-card{padding:18px}.side-card h3{font-size:14px;margin:0 0 12px}.status-line{display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid #eef1f5;font-size:12px}.status-line:last-child{border-bottom:0}.status-line span:first-child{color:var(--muted)}.status-line strong{font-weight:700;text-align:right;overflow-wrap:anywhere}.tip{background:#f4f7ff;border:1px solid #e0e9ff;border-radius:12px;padding:13px;color:#53688e;font-size:12px}.tip strong{display:block;color:#3159a5;margin-bottom:5px}.json-editor{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:1.6;min-height:300px;resize:vertical;background:#111c31;color:#dce7f8;border-color:#111c31}.json-tools{display:flex;gap:8px;justify-content:flex-end;margin-top:10px}.notice{display:none;border-radius:10px;padding:10px 13px;font-size:12px;margin-bottom:16px}.notice.show{display:block}.notice.success{background:#e8f8f0;color:#167a56;border:1px solid #c8efdc}.notice.error{background:#fff0f0;color:#b82e2e;border:1px solid #ffd6d6}.notice.info{background:#edf4ff;color:#3159a5;border:1px solid #d7e5ff}
+.modal-backdrop{position:fixed;inset:0;background:#0e1b31a6;display:none;align-items:center;justify-content:center;padding:20px;z-index:20}.modal-backdrop.open{display:flex}.modal{background:#fff;border-radius:18px;box-shadow:0 24px 80px #08162d40;width:min(560px,100%);max-height:90vh;overflow:auto}.modal-head{padding:20px 22px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}.modal-head h3{margin:0;font-size:17px}.modal-body{padding:22px}.modal-foot{padding:16px 22px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}.form-error{color:var(--red);font-size:12px;margin-top:10px;min-height:18px}
+.footer-actions{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:22px;flex-wrap:wrap}.footer-note{font-size:11px;color:#8a96a8}
+@media(max-width:1100px){.layout{grid-template-columns:minmax(0,1fr)}.side-col{grid-template-columns:repeat(2,minmax(0,1fr))}.summary-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:760px){.app{grid-template-columns:1fr}.sidebar{padding:14px;gap:14px}.brand{padding:0 5px}.sidebar .nav-label,.sidebar-foot{display:none}.nav{grid-template-columns:repeat(2,minmax(0,1fr))}.nav button{padding:9px}.topbar{align-items:flex-start;flex-direction:column}.page-title{font-size:23px}.summary-grid{grid-template-columns:1fr}.summary-card{padding:13px}.field-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.panel-head,.panel-body{padding:16px}.side-col{grid-template-columns:1fr}.kv-row{grid-template-columns:1fr auto}.kv-row .value-cell{grid-column:1/-1;grid-row:2}.rule-row{grid-template-columns:minmax(0,1fr)}.rule-actions{justify-content:flex-end}.role-tabs{width:100%}.role-tab{flex:1}}
+
+.relay-config-table{width:100%;border-collapse:collapse;border:1px solid var(--line);border-radius:10px;overflow:hidden}.relay-config-table th,.relay-config-table td{padding:12px 14px;border-bottom:1px solid #edf0f5;text-align:left;vertical-align:middle}.relay-config-table th{width:220px;background:#fafbfd;color:#465366;font-size:12px;font-weight:700}.relay-config-table tr:last-child th,.relay-config-table tr:last-child td{border-bottom:0}.relay-config-table input,.relay-config-table select,.relay-config-table textarea{width:100%;border:1px solid #dbe2ec;border-radius:9px;background:#fff;padding:9px 10px;color:var(--text);outline:none}.relay-config-table input:focus,.relay-config-table select:focus,.relay-config-table textarea:focus{border-color:#7ca0f9;box-shadow:0 0 0 3px #356df31a}.relay-config-table textarea{min-height:150px;resize:vertical;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}.relay-config-table .table-section th{background:#edf3ff;color:#3159a5}.relay-config-table .table-section td{background:#edf3ff;color:#3159a5;font-size:12px;font-weight:700}@media(max-width:600px){.relay-config-table th{width:125px;padding:10px 8px}.relay-config-table td{padding:10px 8px}}
+
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><div class="brand-mark">N</div><div><div class="brand-name">NetMap</div><div class="brand-sub">NETWORK CONTROL CENTER</div></div></div>
+    <div>
+      <div class="nav-label">CONFIGURATION</div>
+      <nav class="nav">
+        <button class="active" data-section="visual"><span class="nav-icon">◈</span>可视化配置</button>
+        <button data-section="json"><span class="nav-icon">{ }</span>高级 JSON</button>
+      </nav>
+    </div>
+    <div class="sidebar-foot"><strong>NetMap Admin</strong>本地管理控制台<br>配置文件保存在程序配置目录。</div>
+  </aside>
+  <main>
+    <header class="topbar">
+      <div><div class="eyebrow">NETWORK / SETTINGS</div><h1 class="page-title">网络配置中心</h1><p class="page-desc">集中管理代理规则、端口映射与中继服务配置。</p></div>
+      <div class="top-actions"><span class="status-pill"><i class="dot" id="statusDot"></i><span id="statusText">正在获取状态</span></span><button class="btn" id="refreshBtn">↻ 刷新</button><button class="btn primary" id="saveBtn">保存配置</button></div>
+    </header>
+    <div class="role-tabs" role="tablist"><button class="role-tab active" data-role="client">⌘ Client 客户端</button><button class="role-tab" data-role="relay">⇄ Relay 中继端</button></div>
+    <div id="notice" class="notice"></div>
+    <section class="summary-grid">
+      <div class="summary-card"><div class="summary-icon">⇄</div><div><div class="summary-label">当前编辑配置</div><div class="summary-value" id="summaryRole">Client</div></div></div>
+      <div class="summary-card"><div class="summary-icon">⌁</div><div><div class="summary-label" id="summaryCountLabel">代理规则</div><div class="summary-value" id="summaryCount">—</div></div></div>
+      <div class="summary-card"><div class="summary-icon">◷</div><div><div class="summary-label">配置状态</div><div class="summary-value" id="summaryState">未加载</div></div></div>
+    </section>
+    <div class="layout">
+      <div class="main-col" id="visualSection">
+        <section class="panel" id="configFieldsPanel">
+          <div class="panel-head"><div><h2 class="panel-title">配置字段</h2><p class="panel-sub">字段按当前配置文件自动生成；隐藏字段保留在原 JSON 中，保存时不改变原有结构。</p></div></div>
+          <div class="panel-body"><div id="configFields"></div></div>
+        </section>
+        <section class="panel" id="rulesPanel">
+          <div class="panel-head"><div><h2 class="panel-title">代理规则</h2><p class="panel-sub">规则仍使用原有 target / proxy 字段；多个端口会自动拆分为多条规则。</p></div><button class="btn primary" id="addRuleBtn">＋ 添加规则</button></div>
+          <div class="panel-body"><div id="rulesList" class="rules-list"></div></div>
+        </section>
+        <section class="panel" id="mappingsPanel">
+          <div class="panel-head"><div><h2 class="panel-title">端口映射 · Mappings</h2><p class="panel-sub">配置本地监听 IP/端口与目标 IP/端口；已有字段名会优先沿用。</p></div></div>
+          <div class="panel-body"><div id="mappingsEditor"></div></div>
+        </section>
+        <section class="panel" id="jsonInlinePanel">
+          <div class="panel-head"><div><h2 class="panel-title">高级 JSON 编辑器</h2><p class="panel-sub">可直接修改完整配置。应用 JSON 后，可视化表单会同步更新。</p></div><button class="btn small" id="toggleJsonBtn">展开 / 收起</button></div>
+          <div class="panel-body" id="jsonInlineBody" style="display:none"><textarea class="json-editor" id="jsonEditor" spellcheck="false"></textarea><div class="json-tools"><button class="btn" id="formatJsonBtn">格式化</button><button class="btn primary" id="applyJsonBtn">应用 JSON</button></div></div>
+        </section>
+        <div class="footer-actions"><span class="footer-note">保存只写入当前选择的配置文件；不会自动切换正在运行的服务角色。</span><div class="top-actions"><button class="btn" id="reloadBtn">重新读取磁盘配置</button><button class="btn primary" id="saveBottomBtn">保存配置</button></div></div>
+      </div>
+      <aside class="side-col">
+        <section class="panel side-card"><h3>配置概览</h3><div class="status-line"><span>编辑角色</span><strong id="sideRole">Client</strong></div><div class="status-line"><span>配置文件</span><strong id="configFileName">client.json</strong></div><div class="status-line"><span>代理规则</span><strong id="sideRules">—</strong></div><div class="status-line"><span>端口映射</span><strong id="sideMappings">—</strong></div><div class="status-line"><span>最近操作</span><strong id="lastAction">等待加载</strong></div></section>
+        <section class="panel side-card"><h3>操作指南</h3><div class="tip"><strong>代理规则</strong>填写目标地址。端口留空代表不在页面侧限制端口；输入多个端口时用逗号分隔，例如 8080,8081。</div><div style="height:10px"></div><div class="tip"><strong>端口映射</strong>按配置中现有字段编辑。页面不会把 mappings 转换为代理规则，也不会重命名字段。</div><div style="height:10px"></div><div class="tip"><strong>保存与生效</strong>保存写入磁盘配置。若运行服务尚不支持热加载，需按现有服务流程重启后生效。</div></section>
+        <section class="panel side-card"><h3>安全提示</h3><div style="color:var(--muted);font-size:12px">管理页面建议仅在本机访问。编辑前可先刷新配置；保存接口的校验规则仍由后端负责。</div></section>
+      </aside>
+    </div>
+  </main>
+</div>
+<div class="modal-backdrop" id="ruleModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="ruleModalTitle">
+    <div class="modal-head"><h3 id="ruleModalTitle">添加代理规则</h3><button class="btn ghost small" id="closeModalBtn">✕</button></div>
+    <div class="modal-body">
+      <div class="field-grid">
+        <div class="field full"><label for="ruleHost">目标地址</label><input id="ruleHost" placeholder="例如 10.82.51.231 或 example.com"><div class="field-help">对应原有 target 字段中的主机部分，不会新增配置字段。</div></div>
+        <div class="field full"><label for="rulePorts">目标端口（可选，支持多个）</label><input id="rulePorts" placeholder="例如 8080,8081,9000"><div class="field-help">留空时 target 保存为纯地址；多个端口将拆分为多条独立规则。</div></div>
+        <div class="field full"><label>规则模式</label><select id="ruleProxy"><option value="true">通过代理转发（proxy: true）</option><option value="false">直连（proxy: false）</option></select></div>
+      </div><div class="form-error" id="ruleError"></div>
+    </div>
+    <div class="modal-foot"><button class="btn" id="cancelRuleBtn">取消</button><button class="btn primary" id="confirmRuleBtn">确认</button></div>
+  </div>
+</div>
+<div class="modal-backdrop" id="relayTargetModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="relayTargetModalTitle">
+    <div class="modal-head"><h3 id="relayTargetModalTitle">添加允许访问的目标</h3><button class="btn ghost small" id="closeRelayTargetModalBtn">✕</button></div>
+    <div class="modal-body"><div class="field"><label for="relayTargetValue">目标 IP / 地址</label><input id="relayTargetValue" placeholder="例如 10.82.51.231"></div><div class="form-error" id="relayTargetError"></div></div>
+    <div class="modal-foot"><button class="btn" id="cancelRelayTargetBtn">取消</button><button class="btn primary" id="confirmRelayTargetBtn">确认</button></div>
+  </div>
+</div>
+<div class="modal-backdrop" id="mappingModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mappingModalTitle">
+    <div class="modal-head"><h3 id="mappingModalTitle">添加端口映射</h3><button class="btn ghost small" id="closeMappingModalBtn">✕</button></div>
+    <div class="modal-body">
+      <div class="field-grid">
+        <div class="field"><label for="mappingName">名称</label><input id="mappingName" placeholder="例如 DM数据库"></div>
+        <div class="field"><label for="mappingEnabled">启用状态</label><select id="mappingEnabled"><option value="true">启用</option><option value="false">禁用</option></select></div>
+        <div class="field"><label for="mappingListenHost">本地监听 IP</label><input id="mappingListenHost" placeholder="例如 127.0.0.1"></div>
+        <div class="field"><label for="mappingListenPort">本地监听端口</label><input id="mappingListenPort" type="number" min="1" max="65535" placeholder="例如 15236"></div>
+        <div class="field"><label for="mappingTargetHost">目标 IP</label><input id="mappingTargetHost" placeholder="例如 10.82.51.115"></div>
+        <div class="field"><label for="mappingTargetPort">目标端口</label><input id="mappingTargetPort" type="number" min="1" max="65535" placeholder="例如 5236"></div>
+      </div>
+      <div class="form-error" id="mappingError"></div>
+    </div>
+    <div class="modal-foot"><button class="btn" id="cancelMappingBtn">取消</button><button class="btn primary" id="confirmMappingBtn">确认</button></div>
+  </div>
+</div>
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+  let role = "client", currentConfig = null, originalConfig = null, editingRuleIndex = -1, editingMappingIndex = -1, mappingDraft = null, editingRelayTargetIndex = -1, jsonVisible = false, loadSequence = 0;
+  const reserved = new Set(["rules","mappings"]);
+  // Relay 与 Client 配置结构不同；Relay 保存时不写入 Client 专属字段或多余的 relay 对象。
+  function cleanRoleConfig(config, targetRole){
+    if(isObj(config)){
+      if(targetRole==="relay"){
+        delete config.rules;
+        delete config.mappings;
+        delete config.relay;
+      }else if(targetRole==="client"){
+        // Client 不使用顶层 target；规则自身的 target 字段保留。
+        delete config.target;
+      }
+    }
+    return config;
+  }
+  function esc(s){return String(s == null ? "" : s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+  function showNotice(message,type="info"){const n=$("notice");n.className="notice show "+type;n.textContent=message;window.clearTimeout(showNotice.timer);showNotice.timer=window.setTimeout(()=>n.classList.remove("show"),5000);}
+  function setAction(s){$("lastAction").textContent=s;}
+  function isObj(v){return v!==null && typeof v==="object" && !Array.isArray(v);}
+  function clone(v){return JSON.parse(JSON.stringify(v));}
+  async function api(path, options){const res=await fetch(path,options||{});const text=await res.text();let data;try{data=text?JSON.parse(text):{};}catch(e){data={message:text};}if(!res.ok)throw new Error(data.message||data.error||("HTTP "+res.status));return data;}
+  async function loadConfig(showMsg){
+    const requestedRole=role, sequence=++loadSequence;
+    try{
+      const data=await api("/api/config?role="+encodeURIComponent(requestedRole));
+      if(sequence!==loadSequence||requestedRole!==role)return;
+      currentConfig=(data.config!==undefined?data.config:(data.data!==undefined?data.data:data));
+      if(typeof currentConfig==="string")currentConfig=JSON.parse(currentConfig);
+      if(!isObj(currentConfig))throw new Error("配置接口未返回 JSON 对象");
+      currentConfig=cleanRoleConfig(currentConfig, requestedRole);
+      originalConfig=clone(currentConfig);
+      syncEditors();render();setAction("已读取");if(showMsg)showNotice("已重新读取 "+role+".json","success");
+    }catch(e){showNotice("读取配置失败："+e.message,"error");$("summaryState").textContent="读取失败";}
+  }
+  function getStatus(){
+    api("/api/status").then(data=>{
+      const s=data.status||data.data||data;
+      const running=s.running===true||s.online===true||s.serviceRunning===true;
+      $("statusDot").className="dot "+(running?"ok":"");
+      $("statusText").textContent=running?"服务运行中":(s.running===false||s.online===false?"服务未运行":"状态已获取");
+    }).catch(()=>{$("statusDot").className="dot bad";$("statusText").textContent="状态不可用";});
+  }
+  function roleSwitch(next){if(role===next)return;role=next;currentConfig=null;originalConfig=null;document.querySelectorAll("[data-role]").forEach(b=>b.classList.toggle("active",b.dataset.role===role));$("configFields").innerHTML="";$("rulesList").innerHTML="";$("mappingsEditor").innerHTML="<div class=\"empty\">正在读取 "+esc(role)+" 配置……</div>";$("jsonEditor").value="";$("summaryState").textContent="加载中";loadConfig(false);}
+  function fieldLabel(key){
+    // 对象标题使用业务名称；字段仍完全来自接口返回的当前配置，不在前端补造配置项。
+    if(key==="listen")return role==="client"?"客户端配置":"中继端配置";
+    if(key==="relay")return "中继连接配置";
+    if(key==="target")return "目标配置";
+    const labels={listenAddr:"监听地址",listenAddress:"监听地址",listenHost:"监听主机",listenPort:"监听端口",relayAddr:"中继地址",relayAddress:"中继地址",relayHost:"中继主机",relayPort:"中继端口",connectTimeout:"连接超时",connectTimeoutSeconds:"连接超时（秒）",timeout:"超时时间",logLevel:"日志级别",enabled:"启用",proxy:"代理转发",localAddr:"本地监听 IP",localAddress:"本地监听 IP",localHost:"本地监听 IP",localIp:"本地监听 IP",localIP:"本地监听 IP",localPort:"本地监听端口",targetAddr:"目标 IP",targetAddress:"目标 IP",targetHost:"目标 IP",targetIp:"目标 IP",targetIP:"目标 IP",remoteAddr:"目标 IP",remoteAddress:"目标 IP",remoteHost:"目标 IP",remoteIp:"目标 IP",remoteIP:"目标 IP",remotePort:"目标端口",targetPort:"目标端口",allowedTargets:"允许访问的目标",rules:"代理规则",mappings:"端口映射"};
+    return labels[key]||key;
+  }
+  function primitiveControl(key,value,path){
+    const label=fieldLabel(key), id="f_"+path.replace(/[^a-zA-Z0-9_-]/g,"_");
+    // 日志级别使用程序支持的固定选项；若现有配置是其他值，仍保留该值以避免无意改写。
+    if(/(^|\.)log\.level$/.test(path)){
+      const levels=["DEBUG","INFO","WARN","ERROR"];
+      const current=String(value==null?"":value).toUpperCase();
+      if(current&&!levels.includes(current))levels.unshift(current);
+      return `<div class="field"><label for="${id}">${esc(label)}</label><select id="${id}" data-path="${esc(path)}" data-type="string">${levels.map(level=>`<option value="${esc(level)}" ${level===current?"selected":""}>${esc(level)}</option>`).join("")}</select></div>`;
+    }
+    if(typeof value==="boolean")return `<div class="field"><label for="${id}">${esc(label)}</label><select id="${id}" data-path="${esc(path)}" data-type="boolean"><option value="true" ${value?"selected":""}>启用 / true</option><option value="false" ${!value?"selected":""}>禁用 / false</option></select></div>`;
+    if(typeof value==="number")return `<div class="field"><label for="${id}">${esc(label)}</label><input id="${id}" data-path="${esc(path)}" data-type="number" type="number" value="${esc(value)}"></div>`;
+    const isLong=typeof value==="string"&&value.length>90;
+    return `<div class="field ${isLong?"full":""}"><label for="${id}">${esc(label)}</label>${isLong?`<textarea id="${id}" data-path="${esc(path)}" data-type="string" rows="3">${esc(value)}</textarea>`:`<input id="${id}" data-path="${esc(path)}" data-type="string" value="${esc(value)}">`}</div>`;
+  }
+  function renderFields(obj,pathPrefix,excludeKeys,depth){
+    if(!isObj(obj))return "";
+    const keys=Object.keys(obj).filter(k=>!(excludeKeys||[]).includes(k));
+    if(!keys.length)return `<div class="empty"><strong>暂无其他字段</strong>当前配置没有可展示的其他字段。</div>`;
+    let html=`<div class="field-grid">`;
+    keys.forEach(key=>{
+      const v=obj[key], path=pathPrefix?pathPrefix+"."+key:key;
+      if(Array.isArray(v)||isObj(v)){
+        html+=`<div class="field full"><div class="array-label"><label>${esc(fieldLabel(key))} <span class="tag">${Array.isArray(v)?"数组":"对象"}</span></label></div>${renderComplex(key,v,path,depth+1)}</div>`;
+      }else html+=primitiveControl(key,v,path);
+    });
+    return html+"</div>";
+  }
+  function renderComplex(key,value,path,depth){
+    if(depth>5)return `<textarea class="field-json" data-path="${esc(path)}">${esc(JSON.stringify(value))}</textarea>`;
+    if(Array.isArray(value)){
+      let out=`<div class="object-list" data-array-path="${esc(path)}">`;
+      if(!value.length)out+=`<div class="empty"><strong>暂无项目</strong>可以新增一项，新增项将沿用当前数组的数据形态。</div>`;
+      value.forEach((item,i)=>{
+        out+=`<div class="object-card"><div class="object-card-head"><span class="object-card-title">${esc(fieldLabel(key))} #${i+1}</span><button class="btn small danger" data-remove-array="${esc(path)}" data-index="${i}">删除</button></div><div class="object-card-body">${isObj(item)?renderFields(item,path+"."+i,[],depth+1):Array.isArray(item)?renderComplex(key,item,path+"."+i,depth+1):primitiveControl(String(i),item,path+"."+i)}</div></div>`;
+      });
+      out+=`</div><div style="margin-top:10px"><button class="btn small" data-add-array="${esc(path)}">＋ 添加项目</button></div>`;
+      return out;
+    }
+    return `<div class="object-card"><div class="object-card-head"><span class="object-card-title">${esc(fieldLabel(key))} 对象</span></div><div class="object-card-body">${renderFields(value,path,[],depth+1)}</div></div>`;
+  }
+  function renderMappings(value){
+    if(!Array.isArray(value))return '<div class="empty"><strong>mappings 当前不是数组</strong>为避免擅自转换配置类型，请通过高级 JSON 修改。</div>';
+    if(!value.length)return '<div class="empty"><strong>暂无端口映射</strong>添加规则后可配置本地监听 IP/端口和目标 IP/端口。<div style="margin-top:12px"><button class="btn primary" data-add-mapping>＋ 添加端口映射</button></div></div>';
+    return '<div class="rules-list">'+value.map((item,i)=>{
+      if(!isObj(item))return '<div class="object-card"><div class="object-card-body">第 '+(i+1)+' 项不是对象，无法按端口映射列表展示，请通过高级 JSON 修正。</div></div>';
+      const listen=isObj(item.listen)?item.listen:{}, target=isObj(item.target)?item.target:{};
+      const listenText=(listen.host||'未设置监听 IP')+':'+(listen.port==null?'未设置端口':listen.port);
+      const targetText=(target.host||'未设置目标 IP')+':'+(target.port==null?'未设置端口':target.port);
+      return '<div class="rule-row"><div class="rule-main"><div class="rule-target">'+esc(item.name||('端口映射 '+(i+1)))+'</div><div class="rule-meta"><span class="tag '+(item.enabled?'direct':'')+'">'+(item.enabled?'已启用':'已禁用')+'</span><span class="tag">本地 '+esc(listenText)+'</span><span class="tag">目标 '+esc(targetText)+'</span></div></div><div class="rule-actions"><button class="btn small" data-edit-mapping="'+i+'">编辑</button><button class="btn small danger" data-remove-mapping="'+i+'">删除</button></div></div>';
+    }).join('')+'</div><div style="margin-top:12px"><button class="btn primary" data-add-mapping>＋ 添加端口映射</button></div>';
+  }
+  function openMapping(index){
+    saveCurrentInputs();
+    editingMappingIndex=index;
+    const existing=index>=0?currentConfig.mappings[index]:{name:'',enabled:true,listen:{host:'127.0.0.1',port:18080},target:{host:'',port:8080}};
+    mappingDraft=clone(existing);
+    const listen=isObj(mappingDraft.listen)?mappingDraft.listen:{};
+    const target=isObj(mappingDraft.target)?mappingDraft.target:{};
+    $('mappingModalTitle').textContent=index>=0?'编辑端口映射':'添加端口映射';
+    $('mappingName').value=mappingDraft.name==null?'':mappingDraft.name;
+    $('mappingEnabled').value=String(mappingDraft.enabled!==false);
+    $('mappingListenHost').value=listen.host==null?'':listen.host;
+    $('mappingListenPort').value=listen.port==null?'':listen.port;
+    $('mappingTargetHost').value=target.host==null?'':target.host;
+    $('mappingTargetPort').value=target.port==null?'':target.port;
+    $('mappingError').textContent='';
+    $('mappingModal').classList.add('open');
+  }
+  function closeMapping(){ $('mappingModal').classList.remove('open'); mappingDraft=null; }
+  function confirmMapping(){
+    const name=$('mappingName').value.trim();
+    const listenHost=$('mappingListenHost').value.trim();
+    const listenPort=Number($('mappingListenPort').value);
+    const targetHost=$('mappingTargetHost').value.trim();
+    const targetPort=Number($('mappingTargetPort').value);
+    if(!name){$('mappingError').textContent='请填写映射名称。';return;}
+    if(!listenHost||!targetHost){$('mappingError').textContent='请填写本地监听 IP 和目标 IP。';return;}
+    if(!Number.isInteger(listenPort)||listenPort<1||listenPort>65535||!Number.isInteger(targetPort)||targetPort<1||targetPort>65535){$('mappingError').textContent='本地监听端口和目标端口必须是 1–65535 的整数。';return;}
+    const item=isObj(mappingDraft)?clone(mappingDraft):{};
+    item.name=name;item.enabled=$('mappingEnabled').value==='true';
+    if(!isObj(item.listen))item.listen={};if(!isObj(item.target))item.target={};
+    item.listen.host=listenHost;item.listen.port=listenPort;item.target.host=targetHost;item.target.port=targetPort;
+    if(!Array.isArray(currentConfig.mappings))currentConfig.mappings=[];
+    if(editingMappingIndex>=0)currentConfig.mappings[editingMappingIndex]=item;else currentConfig.mappings.push(item);
+    closeMapping();render();setAction('端口映射已更新');showNotice('端口映射已更新，记得保存配置。','success');
+  }
+  function addMapping(){
+    if(!Array.isArray(currentConfig.mappings)){showNotice('当前 mappings 不是数组，未自动转换配置结构。','error');return;}
+    openMapping(-1);
+  }
+  function getAtPath(root,path){return path.split(".").reduce((v,k)=>v==null?undefined:v[k],root);}
+  function setAtPath(root,path,value){const parts=path.split(".");let node=root;for(let i=0;i<parts.length-1;i++){node=node[parts[i]];}node[parts[parts.length-1]]=value;}
+  function deleteAtPath(root,path){const parts=path.split(".");let node=root;for(let i=0;i<parts.length-1;i++)node=node[parts[i]];delete node[parts[parts.length-1]];}
+  function parseTarget(target){
+    const s=String(target||"").trim();
+    if(s.startsWith("[")){const end=s.indexOf("]");if(end>0){const host=s.slice(1,end);const tail=s.slice(end+1);return {host,port:tail.startsWith(":")?tail.slice(1):""};}}
+    const idx=s.lastIndexOf(":");
+    if(idx>0&&/^\d+$/.test(s.slice(idx+1))&&s.indexOf(":")===idx)return {host:s.slice(0,idx),port:s.slice(idx+1)};
+    return {host:s,port:""};
+  }
+  function targetFrom(host,port){host=host.trim();port=port.trim();if(host.startsWith("[")&&host.endsWith("]"))host=host.slice(1,-1);if(host.includes(":"))host="["+host+"]";return port?host+":"+port:host;}
+  function renderRules(){
+    const list=$("rulesList");const rules=Array.isArray(currentConfig.rules)?currentConfig.rules:[];
+    if(!rules.length){list.innerHTML='<div class="empty"><div class="empty-icon">⌁</div><strong>还没有代理规则</strong>添加目标地址，快速配置需要代理或直连的服务。<div style="margin-top:13px"><button class="btn primary" id="emptyAddRule">＋ 添加第一条规则</button></div></div>';const b=$("emptyAddRule");if(b)b.onclick=()=>openRule(-1);return;}
+    list.innerHTML=rules.map((r,i)=>{const t=parseTarget(r.target||"");return `<div class="rule-row"><div class="rule-main"><div class="rule-target">${esc(r.target||"(未设置目标)")}</div><div class="rule-meta"><span class="tag ${r.proxy?"proxy":"direct"}">${r.proxy?"代理转发":"直连"}</span><span class="tag">${t.port?"端口 "+esc(t.port):"未指定端口"}</span><span class="tag">规则 ${i+1}</span></div></div><div class="rule-actions"><input class="switch" type="checkbox" title="proxy 开关" aria-label="代理转发" data-toggle-rule="${i}" ${r.proxy?"checked":""}><button class="btn small" data-edit-rule="${i}">编辑</button><button class="btn small danger" data-delete-rule="${i}">删除</button></div></div>`;}).join("");
+  }
+  function render(){
+    $("summaryRole").textContent=role==="client"?"Client":"Relay";$("sideRole").textContent=role==="client"?"Client 客户端":"Relay 中继端";$("configFileName").textContent=role+".json";
+    $("rulesPanel").style.display=role==="client"?"":"none";$("mappingsPanel").style.display=role==="client"?"":"none";
+    // role 不在可视化表单中展示或修改；Relay 仅展示 listen、target、log 中约定的字段。
+    if(role==="relay"){
+      $("configFields").innerHTML=renderRelayTable(currentConfig);
+      renderRelayTargets();
+    }else{
+      // Client 专属 rules/mappings 使用独立面板；顶层 target 属于 Relay，不在 Client 配置字段中展示。
+      const hiddenKeys=["role","target","rules","mappings"];
+      const visibleKeys=Object.keys(currentConfig).filter(k=>!hiddenKeys.includes(k));
+      $("configFields").innerHTML=renderFieldsSubset(currentConfig,"",hiddenKeys,visibleKeys);
+    }
+    // Client 专属 rules/mappings 仅在 Client 页面展示，隐藏字段仍保留在 currentConfig 中。
+    if(role==="client"){
+      renderRules();
+      $("mappingsEditor").innerHTML=currentConfig.mappings!==undefined?renderMappings(currentConfig.mappings):'<div class="empty"><strong>当前配置没有 mappings 字段</strong>请先在高级 JSON 中加入项目定义的 mappings 数组。</div>';
+    }else{
+      // Relay 页面必须清空 Client 专属编辑器，避免隐藏控件在保存时污染 relay.json。
+      $("rulesList").innerHTML="";
+      $("mappingsEditor").innerHTML="";
+    }
+    syncEditors();
+    const count=role==="client"?(Array.isArray(currentConfig.rules)?currentConfig.rules.length:0):countTargets(currentConfig);
+    $("summaryCountLabel").textContent=role==="client"?"代理规则":"配置项";$("summaryCount").textContent=String(count);
+    $("sideRules").textContent=role==="client"?(Array.isArray(currentConfig.rules)?currentConfig.rules.length:0)+" 条":"不适用";
+    $("sideMappings").textContent=role==="client"?(Array.isArray(currentConfig.mappings)?currentConfig.mappings.length:(isObj(currentConfig.mappings)?Object.keys(currentConfig.mappings).length:currentConfig.mappings===undefined?0:1))+" 项":"不适用";
+    $("summaryState").textContent="已加载";
+  }
+  function renderRelayTable(config){
+    const rows=[];
+    const addRow=(section,label,path,value,type)=>{
+      if(value===undefined)return;
+      const id="f_"+path.replace(/[^a-zA-Z0-9_-]/g,"_");
+      let control="";
+      if(type==="target-list"){
+        control='<div id="relayTargetsEditor" class="rules-list"></div><div style="margin-top:12px"><button class="btn primary" data-add-relay-target>＋ 添加目标</button></div>';
+      }else if(type==="string-array"){
+        control=`<textarea id="${id}" data-path="${esc(path)}" data-type="string-array" spellcheck="false">${esc(Array.isArray(value)?value.join("\n"):"")}</textarea>`;
+      }else if(/(^|\.)log\.level$/.test(path)){
+        const levels=["DEBUG","INFO","WARN","ERROR"], current=String(value==null?"":value).toUpperCase();
+        if(current&&!levels.includes(current))levels.unshift(current);
+        control=`<select id="${id}" data-path="${esc(path)}" data-type="string">${levels.map(level=>`<option value="${esc(level)}" ${level===current?"selected":""}>${esc(level)}</option>`).join("")}</select>`;
+      }else{
+        control=`<input id="${id}" data-path="${esc(path)}" data-type="${type}" value="${esc(value)}" ${type==="number"?'type="number"':''}>`;
+      }
+      rows.push({section,label,control});
+    };
+    if(isObj(config.listen)){
+      addRow("监听配置","监听主机","listen.host",config.listen.host,"string");
+      addRow("监听配置","监听端口","listen.port",config.listen.port,"number");
+    }
+    if(isObj(config.target)){
+      addRow("目标配置","连接超时（秒）","target.connectTimeoutSeconds",config.target.connectTimeoutSeconds,"number");
+      addRow("目标配置","允许访问的目标","target.allowedTargets",config.target.allowedTargets,"target-list");
+    }
+    if(isObj(config.log)) addRow("日志配置","日志级别","log.level",config.log.level,"string");
+    if(!rows.length)return '<div class="empty"><strong>暂无中继配置</strong>当前配置中没有可展示的 listen、target 或 log 字段。</div>';
+    let html='<table class="relay-config-table"><tbody>';
+    let section="";
+    rows.forEach(row=>{
+      if(row.section!==section){section=row.section;html+=`<tr class="table-section"><th colspan="2">${esc(section)}</th></tr>`;}
+      html+=`<tr><th scope="row">${esc(row.label)}</th><td>${row.control}</td></tr>`;
+    });
+    return html+'</tbody></table>';
+  }
+  function renderRelayTargets(){
+    const editor=$("relayTargetsEditor");
+    if(!editor)return;
+    const targets=Array.isArray(currentConfig.target&&currentConfig.target.allowedTargets)?currentConfig.target.allowedTargets:[];
+    if(!targets.length){editor.innerHTML='<div class="empty"><strong>还没有允许访问的目标</strong>添加目标 IP 后，Relay 才会允许访问对应地址。</div>';return;}
+    editor.innerHTML=targets.map((target,i)=>`<div class="rule-row"><div class="rule-main"><div class="rule-target">${esc(target)}</div><div class="rule-meta"><span class="tag">目标 ${i+1}</span></div></div><div class="rule-actions"><button class="btn small" data-edit-relay-target="${i}">编辑</button><button class="btn small danger" data-delete-relay-target="${i}">删除</button></div></div>`).join("");
+  }
+  function openRelayTarget(index){
+    const targets=Array.isArray(currentConfig.target&&currentConfig.target.allowedTargets)?currentConfig.target.allowedTargets:[];
+    editingRelayTargetIndex=index;
+    $("relayTargetModalTitle").textContent=index>=0?"编辑允许访问的目标":"添加允许访问的目标";
+    $("relayTargetValue").value=index>=0?String(targets[index]||""):"";
+    $("relayTargetError").textContent="";
+    $("relayTargetModal").classList.add("open");
+    $("relayTargetValue").focus();
+  }
+  function closeRelayTarget(){ $("relayTargetModal").classList.remove("open"); }
+  function confirmRelayTarget(){
+    const value=$("relayTargetValue").value.trim();
+    if(!value){$("relayTargetError").textContent="请填写目标 IP / 地址。";return;}
+    if(!isObj(currentConfig.target))currentConfig.target={};
+    if(!Array.isArray(currentConfig.target.allowedTargets))currentConfig.target.allowedTargets=[];
+    const targets=currentConfig.target.allowedTargets;
+    if(targets.some((x,i)=>String(x).toLowerCase()===value.toLowerCase()&&i!==editingRelayTargetIndex)){$("relayTargetError").textContent="该目标已存在。";return;}
+    if(editingRelayTargetIndex>=0)targets[editingRelayTargetIndex]=value;else targets.push(value);
+    closeRelayTarget();render();setAction("允许访问的目标已更新");showNotice("目标已更新，记得保存配置。","success");
+  }
+  function renderFieldsSubset(obj,prefix,exclude,keys){
+    if(!keys.length)return '<div class="empty"><strong>暂无配置项</strong>没有可显示的字段。</div>';
+    const subset={};keys.forEach(k=>{if(Object.prototype.hasOwnProperty.call(obj,k))subset[k]=obj[k];});
+    return renderFields(subset,prefix,exclude,0);
+  }
+  function countTargets(o){return Object.keys(o||{}).length;}
+  function syncEditors(){if(currentConfig)$("jsonEditor").value=JSON.stringify(currentConfig,null,2);}
+  function applyInputs(){
+    document.querySelectorAll("[data-path][data-type]").forEach(el=>{
+      const type=el.dataset.type;let v=el.value;
+      if(type==="boolean")v=v==="true";else if(type==="number"){v=Number(v);if(Number.isNaN(v))v=0;}else if(type==="string-array"){v=v.split(/\r?\n/).map(item=>item.trim()).filter(Boolean);}
+      try{setAtPath(currentConfig,el.dataset.path,v);}catch(e){}
+    });
+  }
+  function saveCurrentInputs(){applyInputs();syncEditors();}
+  function openRule(index){
+    editingRuleIndex=index;const r=index>=0?currentConfig.rules[index]:{target:"",proxy:true};const parsed=parseTarget(r.target||"");
+    $("ruleModalTitle").textContent=index>=0?"编辑代理规则":"添加代理规则";$("ruleHost").value=parsed.host;$("rulePorts").value=parsed.port;$("ruleProxy").value=String(r.proxy!==false);$("ruleError").textContent="";$("ruleModal").classList.add("open");
+  }
+  function closeRule(){$("ruleModal").classList.remove("open");}
+  function confirmRule(){
+    const host=$("ruleHost").value.trim(), portText=$("rulePorts").value.trim(), proxy=$("ruleProxy").value==="true";
+    if(!host){$("ruleError").textContent="请填写目标地址。";return;}
+    let ports=[];
+    if(portText){ports=portText.split(/[,，;；\s]+/).map(x=>x.trim()).filter(Boolean);if(!ports.length){$("ruleError").textContent="请填写有效端口。";return;}
+      for(const p of ports){if(!/^\d+$/.test(p)||Number(p)<1||Number(p)>65535){$("ruleError").textContent="端口必须是 1–65535 的整数。";return;}}
+      ports=[...new Set(ports.map(String))];
+    }else ports=[""];
+    const existing=editingRuleIndex>=0?currentConfig.rules[editingRuleIndex]:{target:"",proxy:true};
+    const made=ports.map(p=>{const item=clone(existing||{});item.target=targetFrom(host,p);item.proxy=proxy;return item;});
+    if(!Array.isArray(currentConfig.rules))currentConfig.rules=[];
+    if(editingRuleIndex>=0)currentConfig.rules.splice(editingRuleIndex,1,...made);else currentConfig.rules.push(...made);
+    closeRule();render();setAction("代理规则已更新");showNotice(ports.length>1?"已拆分为 "+ports.length+" 条代理规则。":"代理规则已更新，尚未保存。","success");
+  }
+  function addArray(path){
+    saveCurrentInputs();const arr=getAtPath(currentConfig,path);if(!Array.isArray(arr))return;
+    let sample=arr.length?arr[arr.length-1]:{};
+    let item;if(isObj(sample)){item={};Object.keys(sample).forEach(k=>item[k]=sample[k]===null?"":typeof sample[k]==="boolean"?false:typeof sample[k]==="number"?0:typeof sample[k]==="string"?"":Array.isArray(sample[k])?[]:{});}
+    else if(Array.isArray(sample))item=[];else if(typeof sample==="boolean")item=false;else if(typeof sample==="number")item=0;else item="";
+    arr.push(item);render();setAction("已新增数组项目");
+  }
+  function removeArray(path,index){saveCurrentInputs();const arr=getAtPath(currentConfig,path);if(Array.isArray(arr)){arr.splice(index,1);render();setAction("已删除数组项目");}}
+  async function saveConfig(){
+    try{saveCurrentInputs();cleanRoleConfig(currentConfig, role);const body=JSON.stringify(currentConfig,null,2);const data=await api("/api/config?role="+encodeURIComponent(role),{method:"PUT",headers:{"Content-Type":"application/json"},body});
+      originalConfig=clone(currentConfig);syncEditors();setAction("已保存");$("summaryState").textContent="已保存";showNotice(data.message||"配置已保存到 "+role+".json","success");
+    }catch(e){showNotice("保存失败："+e.message,"error");}
+  }
+  function applyJson(){
+    try{const parsed=JSON.parse($("jsonEditor").value);if(!isObj(parsed))throw new Error("配置根节点必须是 JSON 对象");currentConfig=cleanRoleConfig(parsed, role);originalConfig=clone(currentConfig);render();setAction("已应用 JSON");showNotice("JSON 已应用到可视化表单，记得保存配置。","success");}
+    catch(e){showNotice("JSON 格式错误："+e.message,"error");}
+  }
+  document.querySelectorAll("[data-role]").forEach(b=>b.addEventListener("click",()=>roleSwitch(b.dataset.role)));
+  document.querySelectorAll("[data-section]").forEach(b=>b.addEventListener("click",()=>{document.querySelectorAll("[data-section]").forEach(x=>x.classList.toggle("active",x===b));if(b.dataset.section==="json"){$("jsonInlineBody").style.display="";jsonVisible=true;$("jsonEditor").focus();}else{$("visualSection").scrollIntoView({behavior:"smooth",block:"start"});}}));
+  $("addRuleBtn").onclick=()=>openRule(-1);$("closeModalBtn").onclick=closeRule;$("cancelRuleBtn").onclick=closeRule;$("confirmRuleBtn").onclick=confirmRule;
+  $("ruleModal").addEventListener("click",e=>{if(e.target===$("ruleModal"))closeRule();});
+  $("closeMappingModalBtn").onclick=closeMapping;$("cancelMappingBtn").onclick=closeMapping;$("confirmMappingBtn").onclick=confirmMapping;
+  $("closeRelayTargetModalBtn").onclick=closeRelayTarget;$("cancelRelayTargetBtn").onclick=closeRelayTarget;$("confirmRelayTargetBtn").onclick=confirmRelayTarget;
+  $("relayTargetModal").addEventListener("click",e=>{if(e.target===$("relayTargetModal"))closeRelayTarget();});
+  $("relayTargetValue").addEventListener("keydown",e=>{if(e.key==="Enter")confirmRelayTarget();});
+  $("mappingModal").addEventListener("click",e=>{if(e.target===$("mappingModal"))closeMapping();});
+  $("refreshBtn").onclick=()=>{getStatus();loadConfig(true);};$("reloadBtn").onclick=()=>loadConfig(true);$("saveBtn").onclick=saveConfig;$("saveBottomBtn").onclick=saveConfig;
+  $("toggleJsonBtn").onclick=()=>{jsonVisible=!jsonVisible;$("jsonInlineBody").style.display=jsonVisible?"":"none";if(jsonVisible)syncEditors();};
+  $("formatJsonBtn").onclick=()=>{try{$("jsonEditor").value=JSON.stringify(JSON.parse($("jsonEditor").value),null,2);}catch(e){showNotice("JSON 格式错误："+e.message,"error");}};
+  $("applyJsonBtn").onclick=applyJson;
+  document.addEventListener("click",e=>{
+    const edit=e.target.closest("[data-edit-rule]");if(edit){saveCurrentInputs();openRule(Number(edit.dataset.editRule));return;}
+    const del=e.target.closest("[data-delete-rule]");if(del){saveCurrentInputs();const i=Number(del.dataset.deleteRule);if(confirm("确定删除第 "+(i+1)+" 条代理规则？")){currentConfig.rules.splice(i,1);render();setAction("代理规则已删除");}return;}
+    const addRelayTarget=e.target.closest("[data-add-relay-target]");if(addRelayTarget){openRelayTarget(-1);return;}
+    const editRelayTarget=e.target.closest("[data-edit-relay-target]");if(editRelayTarget){openRelayTarget(Number(editRelayTarget.dataset.editRelayTarget));return;}
+    const deleteRelayTarget=e.target.closest("[data-delete-relay-target]");if(deleteRelayTarget){const i=Number(deleteRelayTarget.dataset.deleteRelayTarget);if(Array.isArray(currentConfig.target&&currentConfig.target.allowedTargets)&&confirm("确定删除第 "+(i+1)+" 个允许访问的目标？")){currentConfig.target.allowedTargets.splice(i,1);render();setAction("允许访问的目标已删除");showNotice("目标已删除，记得保存配置。","success");}return;}
+    const addMappingBtn=e.target.closest("[data-add-mapping]");if(addMappingBtn){addMapping();return;}
+    const editMappingBtn=e.target.closest("[data-edit-mapping]");if(editMappingBtn){openMapping(Number(editMappingBtn.dataset.editMapping));return;}
+    const removeMappingBtn=e.target.closest("[data-remove-mapping]");if(removeMappingBtn){saveCurrentInputs();const idx=Number(removeMappingBtn.dataset.removeMapping);if(Array.isArray(currentConfig.mappings)&&confirm("确定删除第 "+(idx+1)+" 条端口映射？")){currentConfig.mappings.splice(idx,1);render();setAction("已删除端口映射");}return;}
+    const add=e.target.closest("[data-add-array]");if(add){addArray(add.dataset.addArray);return;}
+    const rem=e.target.closest("[data-remove-array]");if(rem){removeArray(rem.dataset.removeArray,Number(rem.dataset.index));return;}
+    const toggle=e.target.closest("[data-toggle-rule]");if(toggle){saveCurrentInputs();currentConfig.rules[Number(toggle.dataset.toggleRule)].proxy=toggle.checked;render();setAction("代理模式已更新");}
+  });
+  document.addEventListener("change",e=>{if(e.target.matches("[data-path][data-type]")){applyInputs();syncEditors();setAction("表单已修改");}});
+  getStatus();loadConfig(false);
+})();
+</script>
+</body>
+</html>

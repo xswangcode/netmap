@@ -22,7 +22,7 @@ import (
 // 6. 进行 TCP 双向数据转发
 // 7. 提供固定 TCP 端口 Mapping
 type Server struct {
-	config  *config.Config
+	config  *config.ClientConfig
 	matcher *rule.Matcher
 
 	listener net.Listener
@@ -36,12 +36,32 @@ type Server struct {
 }
 
 // NewServer 创建 Client Server。
-func NewServer(config *config.Config) *Server {
+func NewServer(
+	cfg *config.ClientConfig,
+) *Server {
+
+	rules := make([]rule.Rule, len(cfg.Rules))
+	for i, configuredRule := range cfg.Rules {
+		rules[i] = rule.Rule{
+			Target: configuredRule.Target,
+			Proxy:  configuredRule.Proxy,
+		}
+	}
+
 	return &Server{
-		config:           config,
-		matcher:          rule.NewMatcher(config.Rules),
-		mappingListeners: make(map[string]net.Listener),
-		started:          make(chan struct{}),
+		config: cfg,
+
+		matcher: rule.NewMatcher(
+			rules,
+		),
+
+		mappingListeners: make(
+			map[string]net.Listener,
+		),
+
+		started: make(
+			chan struct{},
+		),
 	}
 }
 
@@ -50,19 +70,26 @@ func NewServer(config *config.Config) *Server {
 // 当主监听端口以及所有启用的 Mapping 监听端口
 // 全部成功启动后，该 Channel 会收到通知。
 func (s *Server) Started() <-chan struct{} {
+
 	return s.started
 }
 
 // Start 启动 Client Server。
 func (s *Server) Start() error {
+
 	addr := fmt.Sprintf(
 		"%s:%d",
 		s.config.Listen.Host,
 		s.config.Listen.Port,
 	)
 
-	listener, err := net.Listen("tcp", addr)
+	listener, err := net.Listen(
+		"tcp",
+		addr,
+	)
+
 	if err != nil {
+
 		return fmt.Errorf(
 			"listen client server failed: %w",
 			err,
@@ -70,19 +97,23 @@ func (s *Server) Start() error {
 	}
 
 	s.mu.Lock()
+
 	s.listener = listener
+
 	s.mu.Unlock()
 
-	// 如果后续 Mapping 启动失败，
-	// 主 Listener 也需要关闭。
 	defer func() {
+
 		s.stopMappings()
 
 		s.mu.Lock()
+
 		s.listener = nil
+
 		s.mu.Unlock()
 
 		_ = listener.Close()
+
 	}()
 
 	logger.Info(
@@ -92,6 +123,7 @@ func (s *Server) Start() error {
 
 	// 启动固定 TCP Mapping。
 	if err := s.startMappings(); err != nil {
+
 		logger.Error(
 			"start mappings failed error=%v",
 			err,
@@ -100,17 +132,28 @@ func (s *Server) Start() error {
 		return err
 	}
 
-	close(s.started)
+	close(
+		s.started,
+	)
 
 	for {
+
 		conn, err := listener.Accept()
+
 		if err != nil {
+
 			s.mu.Lock()
+
 			stopped := s.listener == nil
+
 			s.mu.Unlock()
 
 			if stopped {
-				logger.Info("client server stopped")
+
+				logger.Info(
+					"client server stopped",
+				)
+
 				return nil
 			}
 
@@ -122,24 +165,31 @@ func (s *Server) Start() error {
 			continue
 		}
 
-		go s.handleConnection(conn)
+		go s.handleConnection(
+			conn,
+		)
 	}
 }
 
 // Stop 停止 Client Server。
 func (s *Server) Stop() {
+
 	s.mu.Lock()
 
 	listener := s.listener
+
 	s.listener = nil
 
 	s.mu.Unlock()
 
 	if listener != nil {
-		logger.Info("stopping client server")
 
-		// 停止主 Proxy Listener。
+		logger.Info(
+			"stopping client server",
+		)
+
 		if err := listener.Close(); err != nil {
+
 			logger.Error(
 				"close client listener failed error=%v",
 				err,
