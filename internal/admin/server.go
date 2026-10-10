@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"netmap/internal/app"
 	"netmap/internal/logger"
 )
 
@@ -19,10 +20,13 @@ type Server struct {
 }
 
 // NewServer 创建 Web 管理服务。
-func NewServer(store *ConfigStore) *Server {
+func NewServer(
+	store *ConfigStore,
+	restart func(string) error,
+) *Server {
 	mux := http.NewServeMux()
 
-	handler := NewHandler(store)
+	handler := NewHandler(store, restart)
 	handler.Register(mux)
 
 	webFS, err := fs.Sub(webFiles, "web")
@@ -35,7 +39,7 @@ func NewServer(store *ConfigStore) *Server {
 
 	return &Server{
 		httpServer: &http.Server{
-			Addr:              "127.0.0.1:18081",
+			Addr:              app.AdminAddress,
 			Handler:           mux,
 			ReadHeaderTimeout: 5 * time.Second,
 			ReadTimeout:       15 * time.Second,

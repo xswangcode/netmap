@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"os"
 
 	"netmap/internal/admin"
 	"netmap/internal/app"
@@ -14,6 +16,12 @@ import (
 )
 
 func main() {
+	if handled, err := app.RunRestartHelper(os.Args[1:]); handled {
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "NetMap restart helper failed:", err)
+		}
+		return
+	}
 
 	instance, alreadyRunning, err := singleinstance.Acquire(
 		"NetMap.SingleInstance.debug",
@@ -73,7 +81,16 @@ func main() {
 		return
 	}
 
-	adminServer := admin.NewServer(store)
+	adminServer := admin.NewServer(
+		store,
+		func(path string) error {
+			if err := app.ScheduleRestart(path); err != nil {
+				return err
+			}
+			tray.Restart()
+			return nil
+		},
+	)
 
 	go func() {
 

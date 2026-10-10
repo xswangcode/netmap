@@ -13,6 +13,7 @@ import (
 var (
 	serverRole   string
 	serverStatus *systray.MenuItem
+	stopServer   func()
 )
 
 // Start 启动 Windows 系统托盘。
@@ -26,6 +27,7 @@ var (
 //   - logger.Error：图标读取失败、打开文件/目录失败等
 func Start(role string, stopFunc func()) {
 	serverRole = role
+	stopServer = stopFunc
 
 	logger.Info(
 		"tray: starting system tray: role=%s",
@@ -38,6 +40,16 @@ func Start(role string, stopFunc func()) {
 		},
 		onExit,
 	)
+}
+
+// Restart stops the active service and closes the tray event loop.
+func Restart() {
+	logger.Info("tray: restarting NetMap")
+	if stopServer != nil {
+		stopServer()
+	}
+	SetServerRunning(false)
+	systray.Quit()
 }
 
 // SetServerRunning 更新服务运行状态。
@@ -134,9 +146,9 @@ func onReady(stopFunc func()) {
 
 	systray.AddSeparator()
 
-	openConfig := systray.AddMenuItem(
-		"打开配置",
-		"打开当前配置文件",
+	openAdmin := systray.AddMenuItem(
+		"打开管理页面",
+		"打开本地 NetMap 管理页面",
 	)
 
 	openLog := systray.AddMenuItem(
@@ -159,12 +171,12 @@ func onReady(stopFunc func()) {
 	go func() {
 		for {
 			select {
-			case <-openConfig.ClickedCh:
+			case <-openAdmin.ClickedCh:
 				logger.Info(
-					"tray: menu clicked: action=open_config",
+					"tray: menu clicked: action=open_admin",
 				)
 
-				openConfigFile()
+				openAdminPage()
 
 			case <-openLog.ClickedCh:
 				logger.Info(
@@ -259,19 +271,11 @@ func onExit() {
 	)
 }
 
-// openConfigFile 打开当前配置文件。
-func openConfigFile() {
-	fileName := "client.json"
-
-	if serverRole == "relay" {
-		fileName = "relay.json"
-	}
-
-	path := app.ConfigPath(fileName)
-
+// openAdminPage 在默认浏览器中打开本地管理页面。
+func openAdminPage() {
 	logger.Debug(
-		"tray: opening config file: path=%s",
-		path,
+		"tray: opening admin page: url=%s",
+		app.AdminURL,
 	)
 
 	if err := exec.Command(
@@ -279,11 +283,11 @@ func openConfigFile() {
 		"/c",
 		"start",
 		"",
-		path,
+		app.AdminURL,
 	).Start(); err != nil {
 		logger.Error(
-			"tray: open config file failed: path=%s error=%v",
-			path,
+			"tray: open admin page failed: url=%s error=%v",
+			app.AdminURL,
 			err,
 		)
 	}

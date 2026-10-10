@@ -8,8 +8,11 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
+	"netmap/internal/app"
 	"netmap/internal/config"
+	"netmap/internal/logger"
 )
 
 const (
@@ -18,14 +21,17 @@ const (
 )
 
 type Handler struct {
-	store *ConfigStore
+	store   *ConfigStore
+	restart func(string) error
 }
 
 func NewHandler(
 	store *ConfigStore,
+	restart func(string) error,
 ) *Handler {
 	return &Handler{
-		store: store,
+		store:   store,
+		restart: restart,
 	}
 }
 
@@ -47,6 +53,54 @@ func (h *Handler) Register(
 		"/api/config/reload",
 		h.handleReload,
 	)
+	mux.HandleFunc(
+		"/api/restart",
+		h.handleRestart,
+	)
+}
+
+func (h *Handler) handleRestart(
+	w http.ResponseWriter,
+	r *http.Request,
+) {
+	if r.Method != http.MethodPost {
+		methodNotAllowed(w)
+		return
+	}
+	if !checkLocalRequest(w, r) {
+		return
+	}
+	if h.restart == nil {
+		writeError(w, http.StatusServiceUnavailable, "restart is unavailable")
+		return
+	}
+
+	role := strings.TrimSpace(r.URL.Query().Get("role"))
+	if !validRole(role) {
+		writeError(w, http.StatusBadRequest, "role must be client or relay")
+		return
+	}
+	if err := h.store.ReloadConfig(role); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	_, path, err := h.store.GetConfig(role)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusAccepted, map[string]string{
+		"message": "restarting",
+		"role":    role,
+		"path":    path,
+	})
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		if err := h.restart(path); err != nil {
+			logger.Error("restart NetMap failed: %v", err)
+		}
+	}()
 }
 
 // 获取运行状态。
@@ -72,7 +126,7 @@ func (h *Handler) handleStatus(
 		map[string]interface{}{
 			"runningRole":  role,
 			"runningPath":  path,
-			"adminAddress": "127.0.0.1:18081",
+			"adminAddress": app.AdminAddress,
 		},
 	)
 }

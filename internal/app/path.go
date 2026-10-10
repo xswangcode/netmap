@@ -6,6 +6,11 @@ import (
 	"path/filepath"
 )
 
+const (
+	AdminAddress = "127.0.0.1:18081"
+	AdminURL     = "http://" + AdminAddress
+)
+
 // Dir 返回 NetMap.exe 所在目录。
 func Dir() string {
 	exePath, err := os.Executable()

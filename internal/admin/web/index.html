@@ -47,7 +47,7 @@ main{min-width:0;padding:28px clamp(18px,3vw,44px) 40px}.topbar{display:flex;ali
   <main>
     <header class="topbar">
       <div><div class="eyebrow">NETWORK / SETTINGS</div><h1 class="page-title">网络配置中心</h1><p class="page-desc">集中管理代理规则、端口映射与中继服务配置。</p></div>
-      <div class="top-actions"><span class="status-pill"><i class="dot" id="statusDot"></i><span id="statusText">正在获取状态</span></span><button class="btn" id="refreshBtn">↻ 刷新</button><button class="btn primary" id="saveBtn">保存配置</button></div>
+      <div class="top-actions"><span class="status-pill"><i class="dot" id="statusDot"></i><span id="statusText">正在获取状态</span></span><button class="btn" id="refreshBtn">↻ 刷新</button><button class="btn" id="saveBtn">保存配置</button><button class="btn primary" id="restartBtn">保存并重启为 Client</button></div>
     </header>
     <div class="role-tabs" role="tablist"><button class="role-tab active" data-role="client">⌘ Client 客户端</button><button class="role-tab" data-role="relay">⇄ Relay 中继端</button></div>
     <div id="notice" class="notice"></div>
@@ -74,7 +74,7 @@ main{min-width:0;padding:28px clamp(18px,3vw,44px) 40px}.topbar{display:flex;ali
           <div class="panel-head"><div><h2 class="panel-title">高级 JSON 编辑器</h2><p class="panel-sub">可直接修改完整配置。应用 JSON 后，可视化表单会同步更新。</p></div><button class="btn small" id="toggleJsonBtn">展开 / 收起</button></div>
           <div class="panel-body" id="jsonInlineBody" style="display:none"><textarea class="json-editor" id="jsonEditor" spellcheck="false"></textarea><div class="json-tools"><button class="btn" id="formatJsonBtn">格式化</button><button class="btn primary" id="applyJsonBtn">应用 JSON</button></div></div>
         </section>
-        <div class="footer-actions"><span class="footer-note">保存只写入当前选择的配置文件；不会自动切换正在运行的服务角色。</span><div class="top-actions"><button class="btn" id="reloadBtn">重新读取磁盘配置</button><button class="btn primary" id="saveBottomBtn">保存配置</button></div></div>
+        <div class="footer-actions"><span class="footer-note">选择角色后可保存并重启程序；重启将使用对应的 client.json 或 relay.json。</span><div class="top-actions"><button class="btn" id="reloadBtn">重新读取磁盘配置</button><button class="btn" id="saveBottomBtn">保存配置</button><button class="btn primary" id="restartBottomBtn">保存并重启</button></div></div>
       </div>
       <aside class="side-col">
         <section class="panel side-card"><h3>配置概览</h3><div class="status-line"><span>编辑角色</span><strong id="sideRole">Client</strong></div><div class="status-line"><span>配置文件</span><strong id="configFileName">client.json</strong></div><div class="status-line"><span>代理规则</span><strong id="sideRules">—</strong></div><div class="status-line"><span>端口映射</span><strong id="sideMappings">—</strong></div><div class="status-line"><span>最近操作</span><strong id="lastAction">等待加载</strong></div></section>
@@ -421,7 +421,19 @@ main{min-width:0;padding:28px clamp(18px,3vw,44px) 40px}.topbar{display:flex;ali
   async function saveConfig(){
     try{saveCurrentInputs();cleanRoleConfig(currentConfig, role);const body=JSON.stringify(currentConfig,null,2);const data=await api("/api/config?role="+encodeURIComponent(role),{method:"PUT",headers:{"Content-Type":"application/json"},body});
       originalConfig=clone(currentConfig);syncEditors();setAction("已保存");$("summaryState").textContent="已保存";showNotice(data.message||"配置已保存到 "+role+".json","success");
-    }catch(e){showNotice("保存失败："+e.message,"error");}
+      return true;
+    }catch(e){showNotice("保存失败："+e.message,"error");return false;}
+  }
+  async function restartConfig(){
+    const roleName=role==="client"?"Client":"Relay";
+    if(!confirm("保存 "+role+".json 并重启 NetMap 为 "+roleName+"？当前服务连接会中断。"))return;
+    if(!await saveConfig())return;
+    try{
+      await api("/api/restart?role="+encodeURIComponent(role),{method:"POST"});
+      setAction("正在重启为 "+roleName);
+      showNotice("配置已保存，NetMap 正在重启为 "+roleName+"。","success");
+      $("restartBtn").disabled=true;$("restartBottomBtn").disabled=true;
+    }catch(e){showNotice("重启失败："+e.message,"error");}
   }
   function applyJson(){
     try{const parsed=JSON.parse($("jsonEditor").value);if(!isObj(parsed))throw new Error("配置根节点必须是 JSON 对象");currentConfig=cleanRoleConfig(parsed, role);originalConfig=clone(currentConfig);render();setAction("已应用 JSON");showNotice("JSON 已应用到可视化表单，记得保存配置。","success");}
@@ -436,7 +448,8 @@ main{min-width:0;padding:28px clamp(18px,3vw,44px) 40px}.topbar{display:flex;ali
   $("relayTargetModal").addEventListener("click",e=>{if(e.target===$("relayTargetModal"))closeRelayTarget();});
   $("relayTargetValue").addEventListener("keydown",e=>{if(e.key==="Enter")confirmRelayTarget();});
   $("mappingModal").addEventListener("click",e=>{if(e.target===$("mappingModal"))closeMapping();});
-  $("refreshBtn").onclick=()=>{getStatus();loadConfig(true);};$("reloadBtn").onclick=()=>loadConfig(true);$("saveBtn").onclick=saveConfig;$("saveBottomBtn").onclick=saveConfig;
+  $("refreshBtn").onclick=()=>{getStatus();loadConfig(true);};$("reloadBtn").onclick=()=>loadConfig(true);$("saveBtn").onclick=saveConfig;$("saveBottomBtn").onclick=saveConfig;$("restartBtn").onclick=restartConfig;$("restartBottomBtn").onclick=restartConfig;
+  document.querySelectorAll("[data-role]").forEach(b=>b.addEventListener("click",()=>{$("restartBtn").textContent="保存并重启为 "+(b.dataset.role==="client"?"Client":"Relay");}));
   $("toggleJsonBtn").onclick=()=>{jsonVisible=!jsonVisible;$("jsonInlineBody").style.display=jsonVisible?"":"none";if(jsonVisible)syncEditors();};
   $("formatJsonBtn").onclick=()=>{try{$("jsonEditor").value=JSON.stringify(JSON.parse($("jsonEditor").value),null,2);}catch(e){showNotice("JSON 格式错误："+e.message,"error");}};
   $("applyJsonBtn").onclick=applyJson;
