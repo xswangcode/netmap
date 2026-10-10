@@ -24,12 +24,11 @@ func main() {
 	}
 
 	instance, alreadyRunning, err := singleinstance.Acquire(
-		"NetMap.SingleInstance.debug",
+		"NetMap.SingleInstance",
 	)
 	if err != nil {
 		return
 	}
-
 	if alreadyRunning {
 		return
 	}
