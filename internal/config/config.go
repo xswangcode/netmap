@@ -30,10 +30,12 @@ type LogConfig struct {
 
 func validateLog(log LogConfig) error {
 	if log.Level != "" &&
+		log.Level != "DEBUG" &&
 		log.Level != "INFO" &&
-		log.Level != "DEBUG" {
+		log.Level != "WARN" &&
+		log.Level != "ERROR" {
 		return fmt.Errorf(
-			"invalid log level: %s, expected INFO or DEBUG",
+			"invalid log level: %s, expected DEBUG, INFO, WARN or ERROR",
 			log.Level,
 		)
 	}
